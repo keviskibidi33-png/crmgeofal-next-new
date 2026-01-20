@@ -55,6 +55,8 @@ type Proyecto = {
   direccion?: string;
   cliente_id: string;
   cliente_nombre?: string;
+  vendedor_nombre?: string;
+  vendedor_telefono?: string;
   created_at?: string;
 };
 
@@ -277,6 +279,8 @@ export function QuoteBuilderPage() {
       ...prev,
       proyecto: p.nombre,
       ubicacion: p.ubicacion || p.direccion || '',
+      personal_comercial: p.vendedor_nombre || prev.personal_comercial,
+      telefono_comercial: p.vendedor_telefono || prev.telefono_comercial,
     }));
   }
 
