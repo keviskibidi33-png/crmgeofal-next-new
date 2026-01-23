@@ -118,9 +118,9 @@ export function AutocompleteInput({
                 {item.precio && ` | S/. ${item.precio}`}
                 {item.tiempo && ` | ${item.tiempo}`}
               </div>
-              {item.codigoRelacionado && (
+              {item.codigosRelacionados && item.codigosRelacionados.length > 0 && (
                 <div className="text-xs text-orange-600 mt-1">
-                  ⚠️ Requiere: {item.codigoRelacionado}
+                  ⚠️ Requiere: {item.codigosRelacionados.join(', ')}
                 </div>
               )}
             </div>

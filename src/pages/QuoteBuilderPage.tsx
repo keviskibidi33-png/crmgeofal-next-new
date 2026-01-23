@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Switch } from '../components/ui/switch';
 import { AutocompleteInput } from '../components/ui/autocomplete-input';
-import { searchEnsayos, getEnsayoByCodigo, getEnsayosRelacionados, type EnsayoItem } from '../data/ensayos-data';
+import { searchEnsayos, getEnsayoByCodigo, getEnsayosRelacionados, ensayosData, type EnsayoItem } from '../data/ensayos-data';
 
 type QuoteItem = {
   codigo: string;
@@ -631,11 +631,45 @@ export function QuoteBuilderPage() {
                   const parcial = (Number(it.costo_unitario) || 0) * (Number(it.cantidad) || 0);
                   return (
                     <tr key={idx} className="border-b border-border last:border-b-0">
-                      <td className="py-2 pr-3">
-                        <Input value={it.codigo} onChange={(e) => updateItem(idx, { codigo: e.target.value })} />
+                      <td className="py-2 pr-3 min-w-[120px]">
+                        <AutocompleteInput
+                          value={it.codigo}
+                          onChange={(value) => updateItem(idx, { codigo: value })}
+                          onSelect={(ensayo: EnsayoItem) => {
+                            updateItem(idx, {
+                              codigo: ensayo.codigo,
+                              descripcion: ensayo.descripcion,
+                              norma: ensayo.norma,
+                              acreditado: ensayo.acreditado,
+                              costo_unitario: ensayo.precio,
+                              ensayoData: ensayo,
+                            });
+                          }}
+                          suggestions={ensayosData}
+                          placeholder="Código"
+                          displayField="descripcion"
+                          codeField="codigo"
+                        />
                       </td>
-                      <td className="py-2 pr-3">
-                        <Input value={it.descripcion} onChange={(e) => updateItem(idx, { descripcion: e.target.value })} />
+                      <td className="py-2 pr-3 min-w-[250px]">
+                        <AutocompleteInput
+                          value={it.descripcion}
+                          onChange={(value) => updateItem(idx, { descripcion: value })}
+                          onSelect={(ensayo: EnsayoItem) => {
+                            updateItem(idx, {
+                              codigo: ensayo.codigo,
+                              descripcion: ensayo.descripcion,
+                              norma: ensayo.norma,
+                              acreditado: ensayo.acreditado,
+                              costo_unitario: ensayo.precio,
+                              ensayoData: ensayo,
+                            });
+                          }}
+                          suggestions={ensayosData}
+                          placeholder="Descripción"
+                          displayField="descripcion"
+                          codeField="codigo"
+                        />
                       </td>
                       <td className="py-2 pr-3">
                         <Input value={it.norma || ''} onChange={(e) => updateItem(idx, { norma: e.target.value })} />
