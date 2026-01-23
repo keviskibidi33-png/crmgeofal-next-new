@@ -313,6 +313,7 @@ export function QuoteBuilderPage() {
           ...newProyecto,
           cliente_id: selectedCliente.id,
           ubicacion: newProyecto.ubicacion,
+          vendedor_id: urlParams.user_id || currentUser?.id,
         }),
       });
       const data = await resp.json();
