@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { cn } from "@/lib/utils"
-import { Users, FileText, Settings, ChevronRight, FolderKanban, Shield, User as UserIcon, Activity } from "lucide-react"
+import { Users, FileText, Settings, ChevronRight, FolderKanban, Shield, User as UserIcon, Activity, ClipboardList } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import type { ModuleType, User } from "@/hooks/use-auth"
@@ -18,6 +18,7 @@ const modules: { id: ModuleType; label: string; icon: React.ElementType; adminOn
   { id: "clientes", label: "Clientes", icon: Users },
   { id: "proyectos", label: "Proyectos", icon: FolderKanban },
   { id: "cotizadora", label: "Cotizadora", icon: FileText },
+  { id: "programacion", label: "Programación", icon: ClipboardList },
   { id: "usuarios", label: "Usuarios", icon: Shield, adminOnly: true },
   { id: "auditoria", label: "Auditoría", icon: Activity, adminOnly: true },
   { id: "configuracion", label: "Configuración", icon: Settings },

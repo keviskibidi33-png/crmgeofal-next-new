@@ -3,8 +3,8 @@
 import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
-export type UserRole = "admin" | "vendor" | "manager"
-export type ModuleType = "clientes" | "cotizadora" | "configuracion" | "proyectos" | "usuarios" | "auditoria"
+export type UserRole = "admin" | "vendor" | "manager" | "laboratorio" | "comercial" | "administracion"
+export type ModuleType = "clientes" | "cotizadora" | "configuracion" | "proyectos" | "usuarios" | "auditoria" | "programacion"
 
 export interface User {
     id: string

@@ -10,6 +10,7 @@ import { ConfiguracionModule } from "@/components/dashboard/configuracion-module
 import { UsuariosModule } from "@/components/dashboard/usuarios-module"
 import { ProyectosModule } from "@/components/dashboard/proyectos-module"
 import { AuditoriaModule } from "@/components/dashboard/auditoria-module"
+import { ProgramacionModule } from "@/components/dashboard/programacion-module"
 import { RoleGuard } from "@/components/dashboard/role-guard"
 import { useAuth, type User, type UserRole, type ModuleType } from "@/hooks/use-auth"
 import { Loader2 } from "lucide-react"
@@ -61,6 +62,8 @@ export default function DashboardPage() {
         return <ProyectosModule user={dashboardUser} />
       case "cotizadora":
         return <CotizadoraModule user={dashboardUser} />
+      case "programacion":
+        return <ProgramacionModule user={dashboardUser} />
       case "usuarios":
         return (
           <RoleGuard user={dashboardUser} allowedRoles={["admin"]}>
