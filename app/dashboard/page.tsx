@@ -16,17 +16,19 @@ import { useAuth, type User, type UserRole, type ModuleType } from "@/hooks/use-
 import { Loader2 } from "lucide-react"
 
 export default function DashboardPage() {
-  const [activeModule, setActiveModule] = useState<ModuleType>("cotizadora")
+  const [activeModule, setActiveModule] = useState<ModuleType | null>(null)
   const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    const saved = localStorage.getItem("crm-active-module") as ModuleType
-    if (saved) setActiveModule(saved)
+    const saved = localStorage.getItem("crm-active-module") as ModuleType | null
+    setActiveModule(saved || "clientes")
   }, [])
 
   useEffect(() => {
-    localStorage.setItem("crm-active-module", activeModule)
+    if (activeModule) {
+      localStorage.setItem("crm-active-module", activeModule)
+    }
   }, [activeModule])
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function DashboardPage() {
     }
   }, [user, loading, router])
 
-  if (loading) {
+  if (loading || !activeModule) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-zinc-950">
         <Loader2 className="h-10 w-10 text-primary animate-spin" />
