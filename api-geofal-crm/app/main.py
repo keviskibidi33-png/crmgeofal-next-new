@@ -990,7 +990,10 @@ async def list_quotes(year: int = None, limit: int = 50):
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 if year:
                     cur.execute("""
-                        SELECT id, numero, year, cliente, ruc, proyecto, total, estado, moneda, fecha_emision, filepath, created_at
+                        SELECT 
+                            id, numero, year, cliente_nombre, cliente_ruc, proyecto, 
+                            total, estado, moneda, fecha_emision, archivo_path as filepath, 
+                            created_at, cliente_id, proyecto_id, vendedor_id
                         FROM cotizaciones
                         WHERE year = %s
                         ORDER BY created_at DESC
@@ -998,7 +1001,10 @@ async def list_quotes(year: int = None, limit: int = 50):
                     """, (year, limit))
                 else:
                     cur.execute("""
-                        SELECT id, numero, year, cliente, ruc, proyecto, total, estado, moneda, fecha_emision, filepath, created_at
+                        SELECT 
+                            id, numero, year, cliente_nombre, cliente_ruc, proyecto, 
+                            total, estado, moneda, fecha_emision, archivo_path as filepath, 
+                            created_at, cliente_id, proyecto_id, vendedor_id
                         FROM cotizaciones
                         ORDER BY created_at DESC
                         LIMIT %s
@@ -1031,12 +1037,12 @@ async def download_quote(quote_id: int):
     conn = _get_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT filepath FROM cotizaciones WHERE id = %s", (quote_id,))
+            cur.execute("SELECT archivo_path FROM cotizaciones WHERE id = %s", (quote_id,))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="Quote not found")
             
-            filepath = Path(row['filepath'])
+            filepath = Path(row['archivo_path'])
             if not filepath.exists():
                 raise HTTPException(status_code=404, detail="File not found")
             
