@@ -1819,6 +1819,434 @@ async def delete_condicion(condicion_id: str):
             conn.close()
 
 
+# =====================================================
+# ENDPOINTS: PROGRAMACIÓN DE SERVICIOS
+# =====================================================
+
+@app.get("/programacion")
+async def get_programacion(
+    seccion: str = None,  # 'laboratorio', 'comercial', 'administracion'
+    estado: str = None,
+    fecha_desde: str = None,
+    fecha_hasta: str = None,
+    search: str = None,
+    limit: int = 100,
+    offset: int = 0
+):
+    """Obtiene todos los registros de programación de servicios"""
+    if not _has_database_url():
+        return {"data": [], "total": 0}
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Query base
+            query = """
+                SELECT * FROM programacion_servicios
+                WHERE activo = true
+            """
+            params = []
+            
+            # Filtros opcionales
+            if estado:
+                query += " AND estado_trabajo = %s"
+                params.append(estado)
+            
+            if fecha_desde:
+                query += " AND fecha_recepcion >= %s"
+                params.append(fecha_desde)
+            
+            if fecha_hasta:
+                query += " AND fecha_recepcion <= %s"
+                params.append(fecha_hasta)
+            
+            if search:
+                query += """ AND (
+                    cliente_nombre ILIKE %s OR
+                    recep_numero ILIKE %s OR
+                    ot ILIKE %s OR
+                    cotizacion_lab ILIKE %s OR
+                    proyecto ILIKE %s
+                )"""
+                search_param = f"%{search}%"
+                params.extend([search_param] * 5)
+            
+            # Count total
+            count_query = query.replace("SELECT *", "SELECT COUNT(*)")
+            cur.execute(count_query, params)
+            total = cur.fetchone()['count']
+            
+            # Order and pagination
+            query += " ORDER BY item_numero DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            
+            cur.execute(query, params)
+            results = cur.fetchall()
+            
+            return {
+                "data": [dict(r) for r in results],
+                "total": total,
+                "limit": limit,
+                "offset": offset
+            }
+    except Exception as e:
+        print(f"Error in get_programacion: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"data": [], "total": 0}
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.get("/programacion/{prog_id}")
+async def get_programacion_by_id(prog_id: str):
+    """Obtiene un registro específico de programación"""
+    if not _has_database_url():
+        raise HTTPException(status_code=404, detail="Database not configured")
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT * FROM programacion_servicios
+                WHERE id = %s AND activo = true
+            """, (prog_id,))
+            result = cur.fetchone()
+            if not result:
+                raise HTTPException(status_code=404, detail="Registro no encontrado")
+            return dict(result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in get_programacion_by_id: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.post("/programacion")
+async def create_programacion(data: dict):
+    """Crea un nuevo registro de programación (desde Laboratorio)"""
+    if not _has_database_url():
+        raise HTTPException(status_code=400, detail="Database not configured")
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Generar recep_numero automático si no se proporciona
+            recep_numero = data.get('recep_numero')
+            if not recep_numero:
+                cur.execute("SELECT generar_recep_numero() as numero")
+                recep_numero = cur.fetchone()['numero']
+            
+            # Generar OT automático si no se proporciona
+            ot = data.get('ot')
+            if not ot:
+                cur.execute("SELECT generar_ot_numero() as numero")
+                ot = cur.fetchone()['numero']
+            
+            cur.execute("""
+                INSERT INTO programacion_servicios (
+                    recep_numero, ot, codigo_muestra, fecha_recepcion,
+                    fecha_inicio, fecha_entrega_estimada, cliente_nombre,
+                    descripcion_servicio, proyecto, estado_trabajo,
+                    cotizacion_lab, created_by
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                RETURNING *
+            """, (
+                recep_numero,
+                ot,
+                data.get('codigo_muestra'),
+                data.get('fecha_recepcion'),
+                data.get('fecha_inicio'),
+                data.get('fecha_entrega_estimada'),
+                data.get('cliente_nombre'),
+                data.get('descripcion_servicio'),
+                data.get('proyecto'),
+                data.get('estado_trabajo', 'PROCESO'),
+                data.get('cotizacion_lab'),
+                data.get('user_id')
+            ))
+            result = cur.fetchone()
+            conn.commit()
+            return {"data": dict(result), "message": "Registro creado exitosamente"}
+    except Exception as e:
+        print(f"Error in create_programacion: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.put("/programacion/{prog_id}/laboratorio")
+async def update_programacion_laboratorio(prog_id: str, data: dict):
+    """Actualiza campos de la sección LABORATORIO"""
+    if not _has_database_url():
+        raise HTTPException(status_code=400, detail="Database not configured")
+    
+    allowed_fields = [
+        'ot', 'codigo_muestra', 'fecha_recepcion', 'fecha_inicio',
+        'fecha_entrega_estimada', 'cliente_nombre', 'descripcion_servicio',
+        'proyecto', 'entrega_real', 'estado_trabajo', 'cotizacion_lab',
+        'autorizacion_lab', 'nota_lab', 'dias_atraso_lab',
+        'motivo_dias_atraso_lab', 'evidencia_envio_recepcion', 'envio_informes'
+    ]
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Construir query dinámico solo con campos permitidos
+            updates = []
+            params = []
+            for field in allowed_fields:
+                if field in data:
+                    updates.append(f"{field} = %s")
+                    params.append(data[field])
+            
+            if not updates:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            
+            # Agregar updated_by
+            updates.append("updated_by = %s")
+            params.append(data.get('user_id'))
+            
+            params.append(prog_id)
+            
+            query = f"""
+                UPDATE programacion_servicios
+                SET {', '.join(updates)}
+                WHERE id = %s AND activo = true
+                RETURNING *
+            """
+            
+            cur.execute(query, params)
+            result = cur.fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Registro no encontrado")
+            
+            conn.commit()
+            return {"data": dict(result), "message": "Sección Laboratorio actualizada"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in update_programacion_laboratorio: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.put("/programacion/{prog_id}/comercial")
+async def update_programacion_comercial(prog_id: str, data: dict):
+    """Actualiza campos de la sección COMERCIAL"""
+    if not _has_database_url():
+        raise HTTPException(status_code=400, detail="Database not configured")
+    
+    allowed_fields = [
+        'fecha_solicitud_com', 'fecha_entrega_com',
+        'evidencia_solicitud_envio', 'dias_atraso_envio_coti',
+        'motivo_dias_atraso_com'
+    ]
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            updates = []
+            params = []
+            for field in allowed_fields:
+                if field in data:
+                    updates.append(f"{field} = %s")
+                    params.append(data[field])
+            
+            if not updates:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            
+            updates.append("updated_by = %s")
+            params.append(data.get('user_id'))
+            params.append(prog_id)
+            
+            query = f"""
+                UPDATE programacion_servicios
+                SET {', '.join(updates)}
+                WHERE id = %s AND activo = true
+                RETURNING *
+            """
+            
+            cur.execute(query, params)
+            result = cur.fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Registro no encontrado")
+            
+            conn.commit()
+            return {"data": dict(result), "message": "Sección Comercial actualizada"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in update_programacion_comercial: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.put("/programacion/{prog_id}/administracion")
+async def update_programacion_administracion(prog_id: str, data: dict):
+    """Actualiza campos de la sección ADMINISTRACIÓN"""
+    if not _has_database_url():
+        raise HTTPException(status_code=400, detail="Database not configured")
+    
+    allowed_fields = [
+        'numero_factura', 'estado_pago', 'estado_autorizar', 'nota_admin'
+    ]
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            updates = []
+            params = []
+            for field in allowed_fields:
+                if field in data:
+                    updates.append(f"{field} = %s")
+                    params.append(data[field])
+            
+            if not updates:
+                raise HTTPException(status_code=400, detail="No hay campos para actualizar")
+            
+            updates.append("updated_by = %s")
+            params.append(data.get('user_id'))
+            params.append(prog_id)
+            
+            query = f"""
+                UPDATE programacion_servicios
+                SET {', '.join(updates)}
+                WHERE id = %s AND activo = true
+                RETURNING *
+            """
+            
+            cur.execute(query, params)
+            result = cur.fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Registro no encontrado")
+            
+            conn.commit()
+            return {"data": dict(result), "message": "Sección Administración actualizada"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in update_programacion_administracion: {e}")
+        import traceback
+        traceback.print_exc()
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.delete("/programacion/{prog_id}")
+async def delete_programacion(prog_id: str):
+    """Elimina (soft delete) un registro de programación"""
+    if not _has_database_url():
+        raise HTTPException(status_code=400, detail="Database not configured")
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                UPDATE programacion_servicios
+                SET activo = false, updated_at = NOW()
+                WHERE id = %s
+                RETURNING id
+            """, (prog_id,))
+            result = cur.fetchone()
+            
+            if not result:
+                raise HTTPException(status_code=404, detail="Registro no encontrado")
+            
+            conn.commit()
+            return {"message": "Registro eliminado", "id": str(result['id'])}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in delete_programacion: {e}")
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.get("/programacion/next-numbers")
+async def get_next_numbers():
+    """Obtiene los próximos números de RECEP y OT"""
+    if not _has_database_url():
+        return {"recep_numero": "1-26", "ot": "1-26 LEM"}
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT generar_recep_numero() as recep, generar_ot_numero() as ot")
+            result = cur.fetchone()
+            return {
+                "recep_numero": result['recep'],
+                "ot": result['ot']
+            }
+    except Exception as e:
+        print(f"Error getting next numbers: {e}")
+        return {"recep_numero": "1-26", "ot": "1-26 LEM"}
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+@app.get("/programacion/{prog_id}/historial")
+async def get_programacion_historial(prog_id: str):
+    """Obtiene el historial de cambios de un registro"""
+    if not _has_database_url():
+        return {"data": []}
+    
+    try:
+        conn = _get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("""
+                SELECT h.*, v.full_name as modificado_por_nombre
+                FROM programacion_servicios_historial h
+                LEFT JOIN vendedores v ON h.modificado_por = v.id
+                WHERE h.programacion_id = %s
+                ORDER BY h.modificado_at DESC
+                LIMIT 50
+            """, (prog_id,))
+            results = cur.fetchall()
+            return {"data": [dict(r) for r in results]}
+    except Exception as e:
+        print(f"Error in get_programacion_historial: {e}")
+        return {"data": []}
+    finally:
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
 
