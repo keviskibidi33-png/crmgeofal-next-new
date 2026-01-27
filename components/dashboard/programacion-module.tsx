@@ -52,30 +52,37 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-geofal-crm.onren
 
 interface ProgramacionServicio {
   id: string
-  item: number
-  recep_n: string
-  ot: string
-  codigo_muestra: string
+  item_numero: number
+  recep_numero: string
+  ot: string | null
+  codigo_muestra: string | null
   fecha_recepcion: string | null
-  fecha_inicio_ensayo: string | null
-  fecha_termino_ensayo: string | null
-  cliente: string
-  ensayo: string
-  estado: string
-  responsable_lab: string | null
-  observaciones_lab: string | null
+  fecha_inicio: string | null
+  fecha_entrega_estimada: string | null
+  cliente_nombre: string
+  descripcion_servicio: string | null
+  proyecto: string | null
+  entrega_real: string | null
+  estado_trabajo: string
+  cotizacion_lab: string | null
+  autorizacion_lab: string | null
+  nota_lab: string | null
+  dias_atraso_lab: number
+  motivo_dias_atraso_lab: string | null
+  evidencia_envio_recepcion: boolean
+  envio_informes: boolean
   fecha_solicitud_com: string | null
   fecha_entrega_com: string | null
-  dias_atraso: number | null
-  responsable_comercial: string | null
+  evidencia_solicitud_envio: string | null
+  dias_atraso_envio_coti: number
+  motivo_dias_atraso_com: string | null
   numero_factura: string | null
   estado_pago: string | null
   estado_autorizar: string | null
-  nota: string | null
-  responsable_admin: string | null
+  nota_admin: string | null
   created_at: string
   updated_at: string
-  deleted_at: string | null
+  activo: boolean
 }
 
 interface Props {
@@ -86,24 +93,23 @@ type TabType = "laboratorio" | "comercial" | "administracion"
 
 // Colores de estado tipo Excel
 const estadoColors: Record<string, string> = {
-  pendiente: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  en_proceso: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  completado: "bg-green-500/20 text-green-400 border-green-500/30",
-  cancelado: "bg-red-500/20 text-red-400 border-red-500/30",
-  atrasado: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  PENDIENTE: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  PROCESO: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  COMPLETADO: "bg-green-500/20 text-green-400 border-green-500/30",
+  CANCELADO: "bg-red-500/20 text-red-400 border-red-500/30",
 }
 
 const estadoPagoColors: Record<string, string> = {
-  pendiente: "bg-yellow-500/20 text-yellow-400",
-  pagado: "bg-green-500/20 text-green-400",
-  parcial: "bg-blue-500/20 text-blue-400",
-  vencido: "bg-red-500/20 text-red-400",
+  PENDIENTE: "bg-yellow-500/20 text-yellow-400",
+  PAGADO: "bg-green-500/20 text-green-400",
+  PARCIAL: "bg-blue-500/20 text-blue-400",
+  VENCIDO: "bg-red-500/20 text-red-400",
 }
 
 const estadoAutorizarColors: Record<string, string> = {
-  pendiente: "bg-yellow-500/20 text-yellow-400",
-  autorizado: "bg-green-500/20 text-green-400",
-  rechazado: "bg-red-500/20 text-red-400",
+  PENDIENTE: "bg-yellow-500/20 text-yellow-400",
+  "ENTREGAR": "bg-green-500/20 text-green-400",
+  "NO ENTREGAR": "bg-red-500/20 text-red-400",
 }
 
 export function ProgramacionModule({ user }: Props) {
@@ -122,12 +128,12 @@ export function ProgramacionModule({ user }: Props) {
   const [newServicio, setNewServicio] = useState({
     codigo_muestra: "",
     fecha_recepcion: new Date().toISOString().split('T')[0],
-    fecha_inicio_ensayo: "",
-    fecha_termino_ensayo: "",
-    cliente: "",
-    ensayo: "",
-    estado: "pendiente",
-    observaciones_lab: "",
+    fecha_inicio: "",
+    fecha_entrega_estimada: "",
+    cliente_nombre: "",
+    descripcion_servicio: "",
+    estado_trabajo: "PROCESO",
+    nota_lab: "",
   })
   
   const { toast } = useToast()
@@ -182,10 +188,10 @@ export function ProgramacionModule({ user }: Props) {
 
   // Crear nuevo servicio
   const handleCreate = async () => {
-    if (!newServicio.cliente || !newServicio.ensayo) {
+    if (!newServicio.cliente_nombre || !newServicio.descripcion_servicio) {
       toast({
         title: "Campos requeridos",
-        description: "Cliente y Ensayo son obligatorios",
+        description: "Cliente y Descripción del Servicio son obligatorios",
         variant: "destructive",
       })
       return
@@ -213,12 +219,12 @@ export function ProgramacionModule({ user }: Props) {
       setNewServicio({
         codigo_muestra: "",
         fecha_recepcion: new Date().toISOString().split('T')[0],
-        fecha_inicio_ensayo: "",
-        fecha_termino_ensayo: "",
-        cliente: "",
-        ensayo: "",
-        estado: "pendiente",
-        observaciones_lab: "",
+        fecha_inicio: "",
+        fecha_entrega_estimada: "",
+        cliente_nombre: "",
+        descripcion_servicio: "",
+        estado_trabajo: "PROCESO",
+        nota_lab: "",
       })
       fetchServicios()
     } catch (error) {
@@ -287,12 +293,12 @@ export function ProgramacionModule({ user }: Props) {
   const filteredServicios = useMemo(() => {
     return servicios.filter(s => {
       const matchesSearch = !searchTerm || 
-        s.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.ensayo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.recep_n.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.ot.toLowerCase().includes(searchTerm.toLowerCase())
+        s.cliente_nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.descripcion_servicio?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.recep_numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        s.ot?.toLowerCase().includes(searchTerm.toLowerCase())
       
-      const matchesEstado = estadoFilter === "all" || s.estado === estadoFilter
+      const matchesEstado = estadoFilter === "all" || s.estado_trabajo === estadoFilter
       
       return matchesSearch && matchesEstado
     })
@@ -300,49 +306,47 @@ export function ProgramacionModule({ user }: Props) {
 
   // Columnas según el tab activo
   const getVisibleColumns = () => {
-    const commonCols = ["item", "recep_n", "ot", "codigo_muestra", "cliente", "ensayo", "estado"]
+    const commonCols = ["item_numero", "recep_numero", "ot", "codigo_muestra", "cliente_nombre", "descripcion_servicio", "estado_trabajo"]
     
     switch (activeTab) {
       case "laboratorio":
-        return [...commonCols, "fecha_recepcion", "fecha_inicio_ensayo", "fecha_termino_ensayo", "responsable_lab", "observaciones_lab"]
+        return [...commonCols, "fecha_recepcion", "fecha_inicio", "fecha_entrega_estimada", "nota_lab"]
       case "comercial":
-        return [...commonCols, "fecha_solicitud_com", "fecha_entrega_com", "dias_atraso", "responsable_comercial"]
+        return [...commonCols, "fecha_solicitud_com", "fecha_entrega_com", "dias_atraso_envio_coti", "motivo_dias_atraso_com"]
       case "administracion":
-        return [...commonCols, "numero_factura", "estado_pago", "estado_autorizar", "nota", "responsable_admin"]
+        return [...commonCols, "numero_factura", "estado_pago", "estado_autorizar", "nota_admin"]
       default:
         return commonCols
     }
   }
 
   const columnLabels: Record<string, string> = {
-    item: "ITEM",
-    recep_n: "RECEP N",
+    item_numero: "ITEM",
+    recep_numero: "RECEP N",
     ot: "OT",
     codigo_muestra: "CÓDIGO MUESTRA",
     fecha_recepcion: "FECHA RECEPCIÓN",
-    fecha_inicio_ensayo: "INICIO ENSAYO",
-    fecha_termino_ensayo: "TÉRMINO ENSAYO",
-    cliente: "CLIENTE",
-    ensayo: "ENSAYO",
-    estado: "ESTADO",
-    responsable_lab: "RESPONSABLE",
-    observaciones_lab: "OBSERVACIONES",
+    fecha_inicio: "INICIO",
+    fecha_entrega_estimada: "ENTREGA ESTIMADA",
+    cliente_nombre: "CLIENTE",
+    descripcion_servicio: "SERVICIO",
+    estado_trabajo: "ESTADO",
+    nota_lab: "OBSERVACIONES",
     fecha_solicitud_com: "FECHA SOLICITUD",
     fecha_entrega_com: "FECHA ENTREGA",
-    dias_atraso: "DÍAS ATRASO",
-    responsable_comercial: "RESPONSABLE",
+    dias_atraso_envio_coti: "DÍAS ATRASO",
+    motivo_dias_atraso_com: "MOTIVO ATRASO",
     numero_factura: "N° FACTURA",
     estado_pago: "ESTADO PAGO",
     estado_autorizar: "AUTORIZAR",
-    nota: "NOTA",
-    responsable_admin: "RESPONSABLE",
+    nota_admin: "NOTA",
   }
 
   // Campos editables por sección
   const editableFields: Record<TabType, string[]> = {
-    laboratorio: ["ot", "codigo_muestra", "fecha_recepcion", "fecha_inicio_ensayo", "fecha_termino_ensayo", "cliente", "ensayo", "estado", "observaciones_lab"],
-    comercial: ["fecha_solicitud_com", "fecha_entrega_com", "dias_atraso"],
-    administracion: ["numero_factura", "estado_pago", "estado_autorizar", "nota"],
+    laboratorio: ["ot", "codigo_muestra", "fecha_recepcion", "fecha_inicio", "fecha_entrega_estimada", "cliente_nombre", "descripcion_servicio", "estado_trabajo", "nota_lab"],
+    comercial: ["fecha_solicitud_com", "fecha_entrega_com", "dias_atraso_envio_coti", "motivo_dias_atraso_com"],
+    administracion: ["numero_factura", "estado_pago", "estado_autorizar", "nota_admin"],
   }
 
   const isEditable = (field: string) => editableFields[activeTab]?.includes(field)
@@ -355,33 +359,33 @@ export function ProgramacionModule({ user }: Props) {
     if (isCurrentlyEditing) {
       return (
         <div className="flex items-center gap-1">
-          {field === "estado" || field === "estado_pago" || field === "estado_autorizar" ? (
+          {field === "estado_trabajo" || field === "estado_pago" || field === "estado_autorizar" ? (
             <Select value={editValue} onValueChange={setEditValue}>
               <SelectTrigger className="h-7 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {field === "estado" && (
+                {field === "estado_trabajo" && (
                   <>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="en_proceso">En Proceso</SelectItem>
-                    <SelectItem value="completado">Completado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
+                    <SelectItem value="PROCESO">Proceso</SelectItem>
+                    <SelectItem value="COMPLETADO">Completado</SelectItem>
+                    <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                    <SelectItem value="CANCELADO">Cancelado</SelectItem>
                   </>
                 )}
                 {field === "estado_pago" && (
                   <>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="pagado">Pagado</SelectItem>
-                    <SelectItem value="parcial">Parcial</SelectItem>
-                    <SelectItem value="vencido">Vencido</SelectItem>
+                    <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                    <SelectItem value="PAGADO">Pagado</SelectItem>
+                    <SelectItem value="PARCIAL">Parcial</SelectItem>
+                    <SelectItem value="VENCIDO">Vencido</SelectItem>
                   </>
                 )}
                 {field === "estado_autorizar" && (
                   <>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="autorizado">Autorizado</SelectItem>
-                    <SelectItem value="rechazado">Rechazado</SelectItem>
+                    <SelectItem value="ENTREGAR">Entregar</SelectItem>
+                    <SelectItem value="NO ENTREGAR">No Entregar</SelectItem>
+                    <SelectItem value="PENDIENTE">Pendiente</SelectItem>
                   </>
                 )}
               </SelectContent>
@@ -393,7 +397,7 @@ export function ProgramacionModule({ user }: Props) {
               onChange={(e) => setEditValue(e.target.value)}
               className="h-7 text-xs w-32"
             />
-          ) : field === "dias_atraso" ? (
+          ) : field === "dias_atraso_lab" || field === "dias_atraso_envio_coti" ? (
             <Input
               type="number"
               value={editValue}
@@ -419,10 +423,10 @@ export function ProgramacionModule({ user }: Props) {
     }
 
     // Renderizar valor con estilos
-    if (field === "estado") {
+    if (field === "estado_trabajo") {
       return (
         <Badge variant="outline" className={cn("text-xs", estadoColors[value] || "")}>
-          {value?.replace("_", " ") || "-"}
+          {value || "-"}
         </Badge>
       )
     }
@@ -496,7 +500,7 @@ export function ProgramacionModule({ user }: Props) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-400">
-              {servicios.filter(s => s.estado === "pendiente").length}
+              {servicios.filter(s => s.estado_trabajo === "PENDIENTE").length}
             </div>
           </CardContent>
         </Card>
@@ -507,7 +511,7 @@ export function ProgramacionModule({ user }: Props) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-400">
-              {servicios.filter(s => s.estado === "en_proceso").length}
+              {servicios.filter(s => s.estado_trabajo === "PROCESO").length}
             </div>
           </CardContent>
         </Card>
@@ -518,7 +522,7 @@ export function ProgramacionModule({ user }: Props) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-400">
-              {servicios.filter(s => s.estado === "completado").length}
+              {servicios.filter(s => s.estado_trabajo === "COMPLETADO").length}
             </div>
           </CardContent>
         </Card>
@@ -555,10 +559,10 @@ export function ProgramacionModule({ user }: Props) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="en_proceso">En Proceso</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                <SelectItem value="PROCESO">En Proceso</SelectItem>
+                <SelectItem value="COMPLETADO">Completado</SelectItem>
+                <SelectItem value="CANCELADO">Cancelado</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -576,7 +580,7 @@ export function ProgramacionModule({ user }: Props) {
                         key={col} 
                         className={cn(
                           "text-xs font-semibold text-zinc-400 whitespace-nowrap",
-                          (col === "item" || col === "recep_n") && "sticky left-0 bg-zinc-900 z-10"
+                          (col === "item_numero" || col === "recep_numero") && "sticky left-0 bg-zinc-900 z-10"
                         )}
                       >
                         {columnLabels[col]}
@@ -608,7 +612,7 @@ export function ProgramacionModule({ user }: Props) {
                             key={col}
                             className={cn(
                               "text-sm whitespace-nowrap",
-                              (col === "item" || col === "recep_n") && "sticky left-0 bg-zinc-900 z-10 font-medium",
+                              (col === "item_numero" || col === "recep_numero") && "sticky left-0 bg-zinc-900 z-10 font-medium",
                               isEditable(col) && "cursor-pointer hover:bg-zinc-700/50"
                             )}
                             onClick={() => isEditable(col) && startEditing(servicio.id, col, (servicio as any)[col])}
@@ -675,39 +679,39 @@ export function ProgramacionModule({ user }: Props) {
             <div className="space-y-2">
               <Label>Cliente *</Label>
               <Input
-                value={newServicio.cliente}
-                onChange={(e) => setNewServicio(prev => ({ ...prev, cliente: e.target.value }))}
+                value={newServicio.cliente_nombre}
+                onChange={(e) => setNewServicio(prev => ({ ...prev, cliente_nombre: e.target.value }))}
                 placeholder="Nombre del cliente"
                 className="bg-zinc-800 border-zinc-700"
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Ensayo *</Label>
+              <Label>Descripción del Servicio *</Label>
               <Input
-                value={newServicio.ensayo}
-                onChange={(e) => setNewServicio(prev => ({ ...prev, ensayo: e.target.value }))}
-                placeholder="Tipo de ensayo"
+                value={newServicio.descripcion_servicio}
+                onChange={(e) => setNewServicio(prev => ({ ...prev, descripcion_servicio: e.target.value }))}
+                placeholder="Tipo de servicio/ensayo"
                 className="bg-zinc-800 border-zinc-700"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Fecha Inicio Ensayo</Label>
+                <Label>Fecha Inicio</Label>
                 <Input
                   type="date"
-                  value={newServicio.fecha_inicio_ensayo}
-                  onChange={(e) => setNewServicio(prev => ({ ...prev, fecha_inicio_ensayo: e.target.value }))}
+                  value={newServicio.fecha_inicio}
+                  onChange={(e) => setNewServicio(prev => ({ ...prev, fecha_inicio: e.target.value }))}
                   className="bg-zinc-800 border-zinc-700"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Fecha Término Ensayo</Label>
+                <Label>Fecha Entrega Estimada</Label>
                 <Input
                   type="date"
-                  value={newServicio.fecha_termino_ensayo}
-                  onChange={(e) => setNewServicio(prev => ({ ...prev, fecha_termino_ensayo: e.target.value }))}
+                  value={newServicio.fecha_entrega_estimada}
+                  onChange={(e) => setNewServicio(prev => ({ ...prev, fecha_entrega_estimada: e.target.value }))}
                   className="bg-zinc-800 border-zinc-700"
                 />
               </div>
@@ -716,14 +720,16 @@ export function ProgramacionModule({ user }: Props) {
             <div className="space-y-2">
               <Label>Estado</Label>
               <Select 
-                value={newServicio.estado} 
-                onValueChange={(v) => setNewServicio(prev => ({ ...prev, estado: v }))}
+                value={newServicio.estado_trabajo} 
+                onValueChange={(v) => setNewServicio(prev => ({ ...prev, estado_trabajo: v }))}
               >
                 <SelectTrigger className="bg-zinc-800 border-zinc-700">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="PROCESO">Proceso</SelectItem>
+                  <SelectItem value="PENDIENTE">Pendiente</SelectItem>
+                  <SelectItem value="COMPLETADO">Completado</SelectItem>
                   <SelectItem value="en_proceso">En Proceso</SelectItem>
                   <SelectItem value="completado">Completado</SelectItem>
                 </SelectContent>
@@ -733,8 +739,8 @@ export function ProgramacionModule({ user }: Props) {
             <div className="space-y-2">
               <Label>Observaciones</Label>
               <Input
-                value={newServicio.observaciones_lab}
-                onChange={(e) => setNewServicio(prev => ({ ...prev, observaciones_lab: e.target.value }))}
+                value={newServicio.nota_lab}
+                onChange={(e) => setNewServicio(prev => ({ ...prev, nota_lab: e.target.value }))}
                 placeholder="Notas adicionales"
                 className="bg-zinc-800 border-zinc-700"
               />
