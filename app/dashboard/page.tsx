@@ -69,7 +69,8 @@ export default function DashboardPage() {
         return <ProyectosModule user={dashboardUser} />
       case "cotizadora":
         return <CotizadoraModule user={dashboardUser} />
-      case "programacion": {
+      case "programacion":
+      case "laboratorio": {
         try {
           console.log('[CRM] Intentando renderizar ProgramacionModule', dashboardUser)
           return <ProgramacionModule user={dashboardUser} />
