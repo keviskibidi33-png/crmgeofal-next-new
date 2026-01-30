@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface Contact {
     id: string
@@ -49,7 +49,7 @@ export function ContactSelector({ clienteId, value, onValueChange, disabled }: C
         telefono: "",
         cargo: "",
     })
-    const { toast } = useToast()
+    // const { toast } = useToast() // Replaced by Sonner
 
     // Cargar contactos cuando cambia el clienteId
     useEffect(() => {
@@ -90,10 +90,8 @@ export function ContactSelector({ clienteId, value, onValueChange, disabled }: C
 
     const handleCreateContact = async () => {
         if (!clienteId || !newContact.nombre.trim()) {
-            toast({
-                title: "Error",
+            toast.error("Error", {
                 description: "El nombre del contacto es obligatorio",
-                variant: "destructive",
             })
             return
         }
@@ -122,8 +120,7 @@ export function ContactSelector({ clienteId, value, onValueChange, disabled }: C
             setContacts((prev) => [...prev, data])
             onValueChange(data.id)
 
-            toast({
-                title: "Contacto creado",
+            toast.success("Contacto creado", {
                 description: `${newContact.nombre} ha sido agregado exitosamente`,
             })
 
@@ -131,10 +128,8 @@ export function ContactSelector({ clienteId, value, onValueChange, disabled }: C
             setNewContact({ nombre: "", email: "", telefono: "", cargo: "" })
             setShowAddForm(false)
         } catch (err: any) {
-            toast({
-                title: "Error al crear contacto",
+            toast.error("Error al crear contacto", {
                 description: err.message,
-                variant: "destructive",
             })
         } finally {
             setLoading(false)

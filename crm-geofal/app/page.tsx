@@ -8,6 +8,7 @@ import { ClientesModule } from "@/components/dashboard/clientes-module"
 import { CotizadoraModule } from "@/components/dashboard/cotizadora-module"
 import { ConfiguracionModule } from "@/components/dashboard/configuracion-module"
 import { ProyectosModule } from "@/components/dashboard/proyectos-module"
+import { PermisosModule } from "@/components/dashboard/permisos-module"
 import { UsuariosModule } from "@/components/dashboard/usuarios-module"
 import { AuditoriaModule } from "@/components/dashboard/auditoria-module"
 import { ProgramacionModule } from "@/components/dashboard/programacion-module"
@@ -98,6 +99,12 @@ export default function HomePage() {
         return (
           <RoleGuard user={dashboardUser} allowedRoles={["admin"]}>
             <UsuariosModule />
+          </RoleGuard>
+        )
+      case "permisos":
+        return (
+          <RoleGuard user={dashboardUser} allowedRoles={["admin"]}>
+            <PermisosModule />
           </RoleGuard>
         )
       case "auditoria":

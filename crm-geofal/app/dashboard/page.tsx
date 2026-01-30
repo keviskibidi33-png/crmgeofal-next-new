@@ -12,6 +12,8 @@ import { ProyectosModule } from "@/components/dashboard/proyectos-module"
 import { AuditoriaModule } from "@/components/dashboard/auditoria-module"
 import { ProgramacionModule } from "@/components/dashboard/programacion-module"
 import { RoleGuard } from "@/components/dashboard/role-guard"
+import { PermisosModule } from "@/components/dashboard/permisos-module"
+import { SessionTerminatedDialog } from "@/components/dashboard/session-terminated-dialog"
 import { useAuth, type User, type UserRole, type ModuleType } from "@/hooks/use-auth"
 import { Loader2 } from "lucide-react"
 
@@ -24,8 +26,9 @@ export default function DashboardPage() {
     }
     return "clientes"
   })
-  const { user, loading } = useAuth()
+  const { user, loading, isSessionTerminated, signOut } = useAuth()
   const router = useRouter()
+
 
   useEffect(() => {
     localStorage.setItem("crm-active-module", activeModule)
@@ -81,6 +84,12 @@ export default function DashboardPage() {
             <UsuariosModule />
           </RoleGuard>
         )
+      case "permisos":
+        return (
+          <RoleGuard user={dashboardUser} allowedRoles={["admin"]}>
+            <PermisosModule />
+          </RoleGuard>
+        )
       case "auditoria":
         return (
           <RoleGuard user={dashboardUser} allowedRoles={["admin"]}>
@@ -111,6 +120,12 @@ export default function DashboardPage() {
         <DashboardHeader user={dashboardUser} setActiveModule={setActiveModule} />
         <main className="flex-1 overflow-auto p-6">{renderModule()}</main>
       </div>
+
+      {/* Session Termination Guard */}
+      <SessionTerminatedDialog
+        open={!!isSessionTerminated}
+        onConfirm={() => signOut()}
+      />
     </div>
   )
 }

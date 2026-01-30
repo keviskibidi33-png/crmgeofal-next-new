@@ -9,21 +9,41 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useToast } from "@/hooks/use-toast"
-import { Building2, Loader2, Lock, Mail } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
+import { Building2, Loader2, Lock, Mail, Activity } from "lucide-react"
 import { logAction } from "@/app/actions/audit-actions"
 import { resetAuthCache } from "@/hooks/use-auth"
+import { createSessionAction } from "@/app/actions/auth-actions"
+import { cn } from "@/lib/utils"
 
 export default function LoginPage() {
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
     const router = useRouter()
-    const { toast } = useToast()
+
+
+
+
+
+
+    // Add state for session conflict dialog
+    const [sessionConflict, setSessionConflict] = useState<{ isOpen: boolean; details?: any }>({ isOpen: false })
+    const [isClosing, setIsClosing] = useState(false)
+
+    const closeSessionConflict = () => {
+        setIsClosing(true)
+        setTimeout(() => {
+            setSessionConflict({ isOpen: false })
+            setIsClosing(false)
+        }, 200) // Match duration-200
+    }
 
     const handleAuth = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
+        setSessionConflict({ isOpen: false })
 
         try {
             const { data: authData, error } = await supabase.auth.signInWithPassword({
@@ -34,6 +54,23 @@ export default function LoginPage() {
 
             // Log login
             if (authData.user) {
+                // Try create secure single session
+                const sessionResult = await createSessionAction(authData.user.id)
+
+                if (sessionResult.error) {
+                    if (sessionResult.code === 'SESSION_EXISTS') {
+                        // Sign out locally
+                        await supabase.auth.signOut()
+                        setSessionConflict({
+                            isOpen: true,
+                            details: sessionResult.details
+                        })
+                        setLoading(false)
+                        return
+                    }
+                    throw new Error(sessionResult.error)
+                }
+
                 logAction({
                     user_id: authData.user.id,
                     user_name: authData.user.user_metadata?.full_name || email,
@@ -45,14 +82,19 @@ export default function LoginPage() {
 
             // Reset auth cache to force fresh fetch on redirect
             resetAuthCache()
-            
-            // Use window.location for a full page reload to ensure auth state is fresh
             window.location.href = "/"
         } catch (error: any) {
-            toast({
-                title: "Error",
-                description: error.message || "Ocurrió un error al intentar autenticar",
-                variant: "destructive",
+            let errorMessage = error.message || "Ocurrió un error al intentar autenticar"
+
+            // Translate common auth errors
+            if (errorMessage.includes("Invalid login credentials")) {
+                errorMessage = "Correo o contraseña incorrectos"
+            } else if (errorMessage.includes("Email not confirmed")) {
+                errorMessage = "El correo electrónico no ha sido confirmado"
+            }
+
+            toast.error("Error de Acceso", {
+                description: errorMessage,
             })
             setLoading(false)
         }
@@ -75,7 +117,7 @@ export default function LoginPage() {
                 <CardHeader className="space-y-3 items-center text-center">
                     <div className="flex items-center justify-center mb-4">
                         <img
-                            src="/Logo Geofal.svg"
+                            src="/logo-geofal.svg"
                             alt="Geofal CRM"
                             className="h-16 w-auto"
                         />
@@ -139,6 +181,54 @@ export default function LoginPage() {
             <div className="absolute bottom-6 text-white/80 text-xs font-medium z-10">
                 © 2026 Geofal CRM. Todos los derechos reservados.
             </div>
+
+            {/* Session Conflict Dialog */}
+            {(sessionConflict.isOpen || isClosing) && (
+                <div className={cn(
+                    "fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-opacity duration-200",
+                    isClosing ? "opacity-0" : "opacity-100 animate-in fade-in"
+                )}>
+                    <Card className={cn(
+                        "w-full max-w-md border-red-200 bg-white shadow-lg",
+                        isClosing ? "animate-out fade-out zoom-out-0 duration-200" : "animate-in fade-in zoom-in-0 duration-200"
+                    )}>
+                        <CardHeader className="text-center pb-2">
+                            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                                <Lock className="h-6 w-6 text-red-600" />
+                            </div>
+                            <CardTitle className="text-xl font-bold text-red-700">Acceso Denegado</CardTitle>
+                            <CardDescription className="text-zinc-600">
+                                Este usuario ya tiene una sesión activa (online) en otro dispositivo.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4 pt-2">
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-100 text-sm">
+                                <div className="flex items-center gap-2 mb-2 text-red-800 font-semibold">
+                                    <Activity className="h-4 w-4" />
+                                    Detalles de la sesión activa:
+                                </div>
+                                <div className="space-y-1 text-zinc-700 ml-6">
+                                    <p>• <strong>Dispositivo:</strong> {sessionConflict.details?.device_info || 'Navegador Web'}</p>
+                                    <p>• <strong>Inicio:</strong> {sessionConflict.details?.last_login_at ? new Date(sessionConflict.details.last_login_at).toLocaleString() : 'Recientemente'}</p>
+                                </div>
+                            </div>
+                            <p className="text-center text-xs text-muted-foreground">
+                                Solo se permite una sesión activa por seguridad. Cierre la otra sesión o espere a que expire.
+                            </p>
+                        </CardContent>
+                        <CardFooter className="flex-col gap-2">
+                            <Button
+                                variant="outline"
+                                className="w-full border-zinc-200 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900"
+                                onClick={closeSessionConflict}
+                            >
+                                Entendido, cancelar
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
+            )}
+
         </div>
     )
 }

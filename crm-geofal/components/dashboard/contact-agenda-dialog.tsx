@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2, Plus, Trash2, User, Star, Phone, Mail, Briefcase, CheckCircle2, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -55,7 +55,7 @@ export function ContactAgendaDialog({
     })
     const [contactToDelete, setContactToDelete] = useState<Contact | null>(null)
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
-    const { toast } = useToast()
+    // const { toast } = useToast() // Replaced by Sonner
 
     const fetchContacts = async () => {
         if (!clienteId) return
@@ -71,7 +71,7 @@ export function ContactAgendaDialog({
             if (error) throw error
             setContacts(data || [])
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsLoading(false)
         }
@@ -98,13 +98,13 @@ export function ContactAgendaDialog({
             })
 
             if (error) throw error
-            toast({ title: "Contacto agregado" })
+            toast.success("Contacto agregado")
             setNewContact({ nombre: "", email: "", telefono: "", cargo: "" })
             setShowAddForm(false)
             fetchContacts()
             if (contacts.length === 0) onPrincipalUpdated?.()
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsSaving(false)
         }
@@ -112,7 +112,7 @@ export function ContactAgendaDialog({
 
     const initiateDelete = (contact: Contact) => {
         if (contact.es_principal) {
-            toast({ title: "Aviso", description: "No puedes eliminar al contacto principal directamente. Marca otro como principal primero.", variant: "destructive" })
+            toast.error("Aviso", { description: "No puedes eliminar al contacto principal directamente. Marca otro como principal primero." })
             return
         }
         setContactToDelete(contact)
@@ -125,10 +125,10 @@ export function ContactAgendaDialog({
         try {
             const { error } = await supabase.from("contactos").delete().eq("id", contactToDelete.id)
             if (error) throw error
-            toast({ title: "Contacto eliminado", description: `Se ha eliminado a ${contactToDelete.nombre}` })
+            toast.success("Contacto eliminado", { description: `Se ha eliminado a ${contactToDelete.nombre}` })
             fetchContacts()
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsSaving(false)
             setIsConfirmDeleteOpen(false)
@@ -153,11 +153,11 @@ export function ContactAgendaDialog({
                 telefono: contact.telefono
             }).eq("id", clienteId)
 
-            toast({ title: "Principal actualizado", description: `${contact.nombre} es ahora el contacto principal.` })
+            toast.success("Principal actualizado", { description: `${contact.nombre} es ahora el contacto principal.` })
             fetchContacts()
             onPrincipalUpdated?.()
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsSaving(false)
         }

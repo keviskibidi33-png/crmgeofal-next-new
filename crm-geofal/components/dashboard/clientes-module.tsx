@@ -57,7 +57,7 @@ import { Badge } from "@/components/ui/badge"
 import { CreateClientDialog } from "./create-client-dialog"
 import { type User } from "@/hooks/use-auth"
 import { supabase } from "@/lib/supabaseClient"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { logAction } from "@/app/actions/audit-actions"
 import { ContactAgendaDialog } from "./contact-agenda-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -212,7 +212,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(1)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
   const [editForm, setEditForm] = useState<Partial<Client>>({})
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const fetchClients = useCallback(async () => {
     setLoading(true)
@@ -233,11 +233,11 @@ export function ClientesModule({ user }: ClientesModuleProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "No fue posible cargar los clientes"
       setFetchError(message)
-      toast({ title: "Error al cargar clientes", description: message, variant: "destructive" })
+      toast.error("Error al cargar clientes", { description: message })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     void fetchClients()
@@ -311,8 +311,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
-    toast({
-      title: "Copiado",
+    toast.success("Copiado", {
       description: "Correo copiado al portapapeles",
     })
   }
@@ -374,7 +373,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
         )
       )
 
-      toast({ title: "Cliente actualizado" })
+      toast.success("Cliente actualizado")
 
       // Log action
       logAction({
@@ -390,10 +389,8 @@ export function ClientesModule({ user }: ClientesModuleProps) {
       setEditForm({})
       void fetchClients()
     } catch (error) {
-      toast({
-        title: "No se pudo actualizar",
+      toast.error("No se pudo actualizar", {
         description: error instanceof Error ? error.message : "Revisa la información e intenta de nuevo",
-        variant: "destructive",
       })
     }
   }
@@ -410,7 +407,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
       setDeleteConfirmStep(2)
       return
     }
-    
+
     if (deleteConfirmStep === 2 && deleteConfirmText === selectedClient?.empresa && selectedClient) {
       try {
         // Use server action for secure deletion
@@ -422,9 +419,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
 
         setClients(prev => prev.filter(c => c.id !== selectedClient.id))
 
-        toast({
-          title: "Cliente eliminado exitosamente",
-        })
+        toast.success("Cliente eliminado exitosamente")
 
         // Log action
         logAction({
@@ -440,10 +435,8 @@ export function ClientesModule({ user }: ClientesModuleProps) {
         setDeleteConfirmStep(1)
         setDeleteConfirmText("")
       } catch (error) {
-        toast({
-          title: "No se pudo eliminar",
+        toast.error("No se pudo eliminar", {
           description: error instanceof Error ? error.message : "Intenta nuevamente",
-          variant: "destructive",
         })
       }
     }
@@ -458,7 +451,7 @@ export function ClientesModule({ user }: ClientesModuleProps) {
       if (error) throw error
       setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, estado: newStatus } : c)))
       setSelectedClient((prev) => (prev && prev.id === clientId ? { ...prev, estado: newStatus } : prev))
-      toast({ title: "Estado actualizado" })
+      toast.success("Estado actualizado")
 
       // Log action
       logAction({
@@ -470,10 +463,8 @@ export function ClientesModule({ user }: ClientesModuleProps) {
       })
     } catch (error) {
 
-      toast({
-        title: "Error al actualizar estado",
+      toast.error("Error al actualizar estado", {
         description: error instanceof Error ? error.message : "No fue posible guardar los cambios",
-        variant: "destructive",
       })
     }
   }

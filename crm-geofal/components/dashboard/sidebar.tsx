@@ -20,12 +20,37 @@ const modules: { id: ModuleType; label: string; icon: React.ElementType; adminOn
   { id: "cotizadora", label: "Cotizadora", icon: FileText },
   { id: "programacion", label: "Programación", icon: ClipboardList },
   { id: "usuarios", label: "Usuarios", icon: Shield, adminOnly: true },
+  { id: "permisos", label: "Permisos", icon: Shield, adminOnly: true },
+  { id: "laboratorio", label: "Laboratorio", icon: Activity }, // Added Laboratorio
   { id: "auditoria", label: "Auditoría", icon: Activity, adminOnly: true },
   { id: "configuracion", label: "Configuración", icon: Settings },
 ]
 
 export function DashboardSidebar({ activeModule, setActiveModule, user }: SidebarProps) {
-  const filteredModules = modules.filter((module) => !module.adminOnly || user.role === "admin")
+  // DEBUG: Log user permissions on every render
+  console.log("[SIDEBAR DEBUG] User object:", JSON.stringify({
+    role: user.role,
+    roleLabel: user.roleLabel,
+    permissions: user.permissions
+  }, null, 2))
+
+  // Use granular permissions for filtering
+  // Admin maintains full access fallback, but ideally should have all permissions true in DB
+  const filteredModules = modules.filter((module) => {
+    // 1. If user is admin, show everything
+    if (user.role === "admin") return true
+
+    // 2. If module has specific permission key, check it
+    if (user.permissions && user.permissions[module.id]) {
+      const hasAccess = user.permissions[module.id].read === true
+      console.log(`[SIDEBAR DEBUG] Module ${module.id}: hasAccess=${hasAccess}`)
+      return hasAccess
+    }
+
+    // 3. Fallback for legacy behavior (if no permissions loaded)
+    console.log(`[SIDEBAR DEBUG] Module ${module.id}: Using fallback (no permissions), adminOnly=${module.adminOnly}`)
+    return !module.adminOnly
+  })
 
   const handleModuleClick = (id: ModuleType) => {
     console.log('[SIDEBAR] Click en módulo:', id)
@@ -38,7 +63,7 @@ export function DashboardSidebar({ activeModule, setActiveModule, user }: Sideba
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <img
-            src="/Logo Geofal.svg"
+            src="/logo-geofal.svg"
             alt="Geofal CRM"
             className="h-10 w-auto"
           />
@@ -99,7 +124,7 @@ export function DashboardSidebar({ activeModule, setActiveModule, user }: Sideba
                   : "border-muted-foreground/50 text-muted-foreground",
               )}
             >
-              {user.role === "admin" ? "Administrador" : "Vendedor"}
+              {user.roleLabel || (user.role === "admin" ? "Administrador" : "Vendedor")}
             </Badge>
           </div>
         </div>

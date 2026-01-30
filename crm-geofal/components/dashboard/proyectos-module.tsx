@@ -35,7 +35,7 @@ import {
   Download,
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { deleteProjectAction } from "@/app/actions/delete-actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -247,7 +247,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
   }, [isGrouped])
 
   const [loading, setLoading] = useState(false)
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const fetchProjects = useCallback(async () => {
     setLoading(true)
@@ -266,15 +266,13 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       if (error) throw error
       setProjects((data || []).map(mapDbProjectToUi))
     } catch (err: any) {
-      toast({
-        title: "Error al cargar proyectos",
+      toast.error("Error al cargar proyectos", {
         description: err.message,
-        variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     fetchProjects()
@@ -321,10 +319,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       }
     } catch (err: any) {
       console.error("Error fetching quotes:", err)
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se pudo cargar el historial de cotizaciones",
-        variant: "destructive"
       })
     } finally {
       setLoadingHistory(false)
@@ -352,7 +348,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       link.click()
       link.remove()
     } catch (err: any) {
-      toast({ title: "Error al descargar", description: err.message, variant: "destructive" })
+      toast.error("Error al descargar", { description: err.message })
     }
   }
 
@@ -443,8 +439,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         ),
       );
 
-      toast({
-        title: "Progreso actualizado",
+      toast.success("Progreso actualizado", {
         description: `El progreso se ha guardado correctamente (${tempProgress}%).`,
       });
 
@@ -457,10 +452,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         details: { project_id: projectId, project_name: projects.find(p => p.id === projectId)?.nombre }
       })
     } catch (err: any) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: err.message || "No se pudo actualizar el progreso.",
-        variant: "destructive",
       });
     } finally {
       setEditingProgressId(null);
@@ -520,8 +513,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         ),
       );
 
-      toast({
-        title: "Proyecto cerrado",
+      toast.success("Proyecto cerrado", {
         description: `El proyecto se ha marcado como ${resultado === "venta_ganada" ? "ganado" : resultado === "venta_perdida" ? "perdido" : "archivado"}.`,
       });
 
@@ -534,10 +526,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         details: { project_id: projectId }
       })
     } catch (err: any) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: err.message || "No se pudo cerrar el proyecto.",
-        variant: "destructive",
       });
     } finally {
       setIsCloseDialogOpen(false);
@@ -552,10 +542,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       .eq("id", projectId)
 
     if (error) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se pudo iniciar la ejecución del proyecto",
-        variant: "destructive",
       })
       return
     }
@@ -564,8 +552,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       prev.map((p) => (p.id === projectId && p.estado === "venta_ganada" ? { ...p, estado: "en_ejecucion", etapa: "ventas" } : p)),
     )
 
-    toast({
-      title: "Proyecto iniciado",
+    toast.success("Proyecto iniciado", {
       description: "El proyecto ahora está en ejecución",
     })
 
@@ -577,6 +564,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       module: "PROYECTOS",
       details: { project_id: projectId }
     })
+
   }
 
   const changeProjectStatus = async (projectId: string, newStatus: Project["estado"]) => {
@@ -601,10 +589,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       .eq("id", projectId)
 
     if (error) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se pudo cambiar el estado del proyecto",
-        variant: "destructive",
       })
       return
     }
@@ -614,8 +600,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       prev.map((p) => p.id === projectId ? { ...p, estado: newStatus, etapa: newEtapa } : p)
     )
 
-    toast({
-      title: "Estado actualizado",
+    toast.success("Estado actualizado", {
       description: `El proyecto cambió a "${getEstadoLabel(newStatus)}"`,
     })
 
@@ -627,6 +612,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       module: "PROYECTOS",
       details: { project_id: projectId, status: newStatus }
     })
+
+
   }
 
   const openViewDialog = (project: Project) => {
@@ -683,8 +670,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
           )
         }
 
-        toast({
-          title: "Proyecto actualizado",
+        toast.success("Proyecto actualizado", {
           description: "Los cambios se han guardado correctamente.",
         })
 
@@ -702,10 +688,8 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         setSelectedProject(null)
         setEditForm({})
       } catch (err: any) {
-        toast({
-          title: "Error",
+        toast.error("Error", {
           description: err.message || "No se pudo actualizar el proyecto.",
-          variant: "destructive",
         })
       } finally {
         setLoading(false)
@@ -734,8 +718,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
         }
 
         setProjects((prev) => prev.filter((p) => p.id !== selectedProject?.id))
-        toast({
-          title: "✅ Proyecto eliminado",
+        toast.success("✅ Proyecto eliminado", {
           description: "El proyecto ha sido eliminado del dashboard correctamente."
         })
 
@@ -748,7 +731,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
           details: { project_id: selectedProject?.id }
         })
       } catch (err: any) {
-        toast({ title: "Error", description: err.message, variant: "destructive" })
+        toast.error("Error", { description: err.message })
       }
       setIsDeleteDialogOpen(false)
       setSelectedProject(null)
@@ -1707,7 +1690,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       )}
 
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent showCloseButton={true} className="sm:max-w-[650px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl">
+        <DialogContent className="sm:max-w-[650px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl">
           {selectedProject && (
             <>
               <DialogHeader className="sr-only">
@@ -1879,7 +1862,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       </Dialog>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent showCloseButton={true} className="sm:max-w-[620px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl">
+        <DialogContent className="sm:max-w-[620px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl">
           {selectedProject && (
             <>
               <DialogHeader className="p-6 border-b border-border/50 bg-slate-50/10 shrink-0">
@@ -2050,7 +2033,7 @@ export function ProyectosModule({ user }: ProyectosModuleProps) {
       </Dialog>
 
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent showCloseButton={false} className="sm:max-w-[450px] bg-card border-border">
+        <DialogContent className="sm:max-w-[450px] bg-card border-border">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2 text-red-400">
               <AlertTriangle className="h-5 w-5" />

@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import type { Project } from "./proyectos-module"
 
 interface CloseProjectDialogProps {
@@ -47,23 +47,19 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
   const [montoFinal, setMontoFinal] = useState(project.presupuesto.toString())
   const [motivoPerdida, setMotivoPerdida] = useState<Project["motivoPerdida"]>()
   const [notasCierre, setNotasCierre] = useState("")
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const handleSubmit = async () => {
     if (!resultado) {
-      toast({
-        title: "Selecciona un resultado",
+      toast.error("Selecciona un resultado", {
         description: "Debes indicar si fue venta ganada, perdida o archivar.",
-        variant: "destructive",
       })
       return
     }
 
     if (resultado === "venta_perdida" && !motivoPerdida) {
-      toast({
-        title: "Selecciona el motivo",
+      toast.error("Selecciona el motivo", {
         description: "Debes indicar el motivo de la pérdida.",
-        variant: "destructive",
       })
       return
     }
@@ -82,15 +78,16 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
         notasCierre || undefined,
       )
 
-      toast({
-        title:
-          resultado === "venta_ganada"
-            ? "¡Venta registrada!"
-            : resultado === "venta_perdida"
-              ? "Pérdida registrada"
-              : "Proyecto archivado",
-        description: `El proyecto "${project.nombre}" se ha movido a ${resultado === "venta_ganada" ? "Ventas" : resultado === "venta_perdida" ? "Perdidas" : "Archivados"}.`,
-      })
+      toast.success(
+        resultado === "venta_ganada"
+          ? "¡Venta registrada!"
+          : resultado === "venta_perdida"
+            ? "Pérdida registrada"
+            : "Proyecto archivado",
+        {
+          description: `El proyecto "${project.nombre}" se ha movido a ${resultado === "venta_ganada" ? "Ventas" : resultado === "venta_perdida" ? "Perdidas" : "Archivados"}.`,
+        }
+      )
 
       // Reset form
       setResultado(null)
@@ -98,10 +95,8 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
       setMotivoPerdida(undefined)
       setNotasCierre("")
     } catch {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se pudo cerrar el proyecto.",
-        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -149,11 +144,10 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
             >
               <Label
                 htmlFor="venta_ganada"
-                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                  resultado === "venta_ganada"
+                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${resultado === "venta_ganada"
                     ? "border-emerald-500 bg-emerald-500/10"
                     : "border-border hover:border-emerald-500/50"
-                }`}
+                  }`}
               >
                 <RadioGroupItem value="venta_ganada" id="venta_ganada" className="sr-only" />
                 <CheckCircle2
@@ -165,11 +159,10 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
               </Label>
               <Label
                 htmlFor="venta_perdida"
-                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                  resultado === "venta_perdida"
+                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${resultado === "venta_perdida"
                     ? "border-red-500 bg-red-500/10"
                     : "border-border hover:border-red-500/50"
-                }`}
+                  }`}
               >
                 <RadioGroupItem value="venta_perdida" id="venta_perdida" className="sr-only" />
                 <XCircle
@@ -181,11 +174,10 @@ export function CloseProjectDialog({ open, onOpenChange, project, onClose }: Clo
               </Label>
               <Label
                 htmlFor="archivado"
-                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                  resultado === "archivado"
+                className={`flex flex-col items-center justify-center p-4 border rounded-lg cursor-pointer transition-colors ${resultado === "archivado"
                     ? "border-gray-500 bg-gray-500/10"
                     : "border-border hover:border-gray-500/50"
-                }`}
+                  }`}
               >
                 <RadioGroupItem value="archivado" id="archivado" className="sr-only" />
                 <Archive

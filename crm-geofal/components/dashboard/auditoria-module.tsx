@@ -18,7 +18,7 @@ import {
     Filter,
 } from "lucide-react"
 import { supabase } from "@/lib/supabaseClient"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getAuditLogs, purgeLogsAction, manualRangePurge } from "@/app/actions/audit-actions"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
 interface AuditoriaModuleProps {
@@ -58,12 +60,12 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
     const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false)
     const [isManualPurgeOpen, setIsManualPurgeOpen] = useState(false)
     const [purgeRange, setPurgeRange] = useState({ start: "", end: "" })
-    const [isProcessing, setIsProcessing] = useState(false)
 
-    const { toast } = useToast()
+    const [isProcessing, setIsProcessing] = useState(false)
+    const [selectedLog, setSelectedLog] = useState<any>(null)
 
     const fetchUsers = async () => {
-        const { data } = await supabase.from("vendedores").select("id, full_name").order("full_name")
+        const { data } = await supabase.from("perfiles").select("id, full_name").order("full_name")
         if (data) setUsers(data)
     }
 
@@ -83,15 +85,13 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
             setLogs(result.data || [])
             setTotalCount(result.count || 0)
         } catch (err: any) {
-            toast({
-                title: "Error al cargar logs",
+            toast.error("Error al cargar logs", {
                 description: err.message,
-                variant: "destructive",
             })
         } finally {
             setLoading(false)
         }
-    }, [userIdFilter, startDate, endDate, currentPage, pageSize, toast])
+    }, [userIdFilter, startDate, endDate, currentPage, pageSize])
 
     useEffect(() => {
         fetchUsers()
@@ -119,19 +119,17 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
 
             if (result.data) {
                 handleDownloadTxt(result.data, result.filename || "audit_logs.txt")
-                toast({
-                    title: "Limpieza automática completada",
+                toast.success("Limpieza automática completada", {
                     description: `Se eliminaron ${result.count || 0} logs antiguos y se descargó el respaldo.`,
                 })
                 fetchLogs()
             } else {
-                toast({
-                    title: "Sin logs antiguos",
+                toast.info("Sin logs antiguos", {
                     description: "No se encontraron logs de más de 6 días para eliminar.",
                 })
             }
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsProcessing(false)
             setIsPurgeDialogOpen(false)
@@ -140,7 +138,7 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
 
     const handleManualPurge = async () => {
         if (!purgeRange.start || !purgeRange.end) {
-            toast({ title: "Error", description: "Seleccione un rango de fechas", variant: "destructive" })
+            toast.error("Error", { description: "Seleccione un rango de fechas" })
             return
         }
 
@@ -155,16 +153,15 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
 
             if (result.count && result.count > 0 && result.data) {
                 handleDownloadTxt(result.data, result.filename || "manual_purge.txt")
-                toast({
-                    title: "Purga manual completada",
+                toast.success("Purga manual completada", {
                     description: `Se eliminaron ${result.count} logs y se descargó el respaldo.`,
                 })
                 fetchLogs()
             } else {
-                toast({ title: "Sin resultados", description: "No se encontraron logs en ese rango." })
+                toast.info("Sin resultados", { description: "No se encontraron logs en ese rango." })
             }
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsProcessing(false)
             setIsManualPurgeOpen(false)
@@ -263,8 +260,8 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
                         <TableHeader className="bg-secondary/30">
                             <TableRow>
                                 <TableHead className="w-[180px]">Fecha/Hora</TableHead>
-                                <TableHead>Usuario</TableHead>
-                                <TableHead>Acción</TableHead>
+                                <TableHead className="max-w-[200px]">Usuario</TableHead>
+                                <TableHead className="max-w-[200px]">Acción</TableHead>
                                 <TableHead>Módulo</TableHead>
                                 <TableHead>Detalles</TableHead>
                                 <TableHead className="text-right">Estado</TableHead>
@@ -288,13 +285,19 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
                                 </TableRow>
                             ) : (
                                 logs.map((log) => (
-                                    <TableRow key={log.id} className="hover:bg-secondary/10 transition-colors">
+                                    <TableRow
+                                        key={log.id}
+                                        className="hover:bg-secondary/10 transition-colors cursor-pointer group"
+                                        onClick={() => setSelectedLog(log)}
+                                    >
                                         <TableCell className="text-xs font-mono">
                                             {new Date(log.created_at).toLocaleString('es-PE')}
                                         </TableCell>
-                                        <TableCell className="font-medium">{log.user_name || "Sistema"}</TableCell>
-                                        <TableCell>
-                                            <span className="text-sm">{log.action}</span>
+                                        <TableCell className="font-medium max-w-[200px] truncate" title={log.user_name || "Sistema"}>
+                                            {log.user_name || "Sistema"}
+                                        </TableCell>
+                                        <TableCell className="max-w-[200px] truncate" title={log.action}>
+                                            <span className="text-sm font-semibold">{log.action}</span>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="text-[10px] uppercase font-bold tracking-wider opacity-70">
@@ -303,7 +306,7 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
                                         </TableCell>
                                         <TableCell className="max-w-[300px]">
                                             <span className="text-xs text-muted-foreground truncate block italic">
-                                                {log.details ? JSON.stringify(log.details).substring(0, 100) : "-"}
+                                                {log.details ? JSON.stringify(log.details) : "-"}
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-right">
@@ -349,7 +352,7 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
 
             {/* Auto Purge Dialog */}
             <Dialog open={isPurgeDialogOpen} onOpenChange={setIsPurgeDialogOpen}>
-                <DialogContent className="sm:max-w-[425px] bg-card border-border" showCloseButton={false}>
+                <DialogContent className="sm:max-w-[425px] bg-card border-border">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-primary">
                             <Clock className="h-5 w-5" />
@@ -377,7 +380,7 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
 
             {/* Manual Purge Dialog */}
             <Dialog open={isManualPurgeOpen} onOpenChange={setIsManualPurgeOpen}>
-                <DialogContent className="sm:max-w-[425px] bg-card border-border" showCloseButton={false}>
+                <DialogContent className="sm:max-w-[425px] bg-card border-border">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-500">
                             <AlertTriangle className="h-5 w-5" />
@@ -420,6 +423,70 @@ export function AuditoriaModule({ user }: AuditoriaModuleProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            {/* Log Details Sheet */}
+            <Sheet open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+                <SheetContent className="w-[400px] sm:w-[540px] overflow-y-auto p-6">
+                    <SheetHeader className="mb-6">
+                        <SheetTitle className="flex items-center gap-2">
+                            <Activity className="h-5 w-5 text-primary" />
+                            Detalle del Evento
+                        </SheetTitle>
+                        <SheetDescription>
+                            ID: <span className="font-mono text-xs">{selectedLog?.id}</span>
+                        </SheetDescription>
+                    </SheetHeader>
+
+                    {selectedLog && (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between gap-4 flex-wrap">
+                                <Badge className={getSeverityBadge(selectedLog.severity) + " text-sm px-3 py-1"}>
+                                    {selectedLog.severity}
+                                </Badge>
+                                <span className="text-sm text-muted-foreground font-medium text-right">
+                                    {new Date(selectedLog.created_at).toLocaleString('es-PE', {
+                                        dateStyle: 'full',
+                                        timeStyle: 'medium'
+                                    })}
+                                </span>
+                            </div>
+
+                            <div className="grid gap-4 p-4 bg-secondary/20 rounded-lg border border-border/50">
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">Usuario</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Users className="h-4 w-4 text-primary" />
+                                        <span className="font-semibold">{selectedLog.user_name || "Sistema"}</span>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">Módulo</Label>
+                                    <div className="font-medium flex items-center gap-2">
+                                        <Badge variant="outline">{selectedLog.module || "N/A"}</Badge>
+                                    </div>
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs text-muted-foreground uppercase tracking-wider">Acción</Label>
+                                    <p className="text-sm font-medium">{selectedLog.action}</p>
+                                </div>
+                            </div>
+
+                            {selectedLog.details && (
+                                <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                        <FileText className="h-4 w-4" />
+                                        Datos Técnicos (JSON)
+                                    </Label>
+                                    <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-muted/50 font-mono text-xs">
+                                        <pre className="whitespace-pre-wrap break-all text-primary/80">
+                                            {JSON.stringify(selectedLog.details, null, 2)}
+                                        </pre>
+                                    </ScrollArea>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </SheetContent>
+            </Sheet>
         </div>
     )
 }

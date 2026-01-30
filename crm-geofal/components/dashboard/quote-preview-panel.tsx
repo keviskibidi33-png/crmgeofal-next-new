@@ -18,6 +18,7 @@ interface QuotePreviewPanelProps {
     onDownload: (quote: Quote) => void
     onStatusChange: (quoteId: string, status: Quote["estado"]) => void
     onViewFull: (quote: Quote) => void
+    onEdit: (quote: Quote) => void
     onDelete: (quote: Quote) => void
     isUpdating?: boolean
 }
@@ -50,6 +51,7 @@ export function QuotePreviewPanel({
     onDownload,
     onStatusChange,
     onViewFull,
+    onEdit,
     onDelete,
     isUpdating = false
 }: QuotePreviewPanelProps) {
@@ -82,9 +84,7 @@ export function QuotePreviewPanel({
                             <FileText className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-primary text-sm">
-                                COT-{quote.numero}-{quote.year}
-                            </h3>
+                            COT-{quote.numero}-{String(quote.year).slice(-2)}
                             <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
                                 {quote.proyectoNombre}
                             </p>
@@ -312,6 +312,16 @@ export function QuotePreviewPanel({
                         Descargar
                     </Button>
                 </div>
+
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full h-9 text-xs gap-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200"
+                    onClick={() => onEdit(quote)}
+                >
+                    <FileText className="h-3.5 w-3.5" />
+                    Editar Cotización
+                </Button>
 
                 <div className="flex gap-2">
                     <Button

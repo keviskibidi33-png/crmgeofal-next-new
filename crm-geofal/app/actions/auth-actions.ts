@@ -1,9 +1,39 @@
 "use server"
 
 import { createClient } from "@supabase/supabase-js"
+import { cookies } from "next/headers"
+import { randomUUID } from "crypto"
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+// Helper to verify admin role
+async function verifyAdminRole() {
+    const cookieStore = await cookies()
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+
+    // Get the session ID from the cookie
+    const sessionId = cookieStore.get('crm_session')?.value
+    if (!sessionId) return false
+
+    // Look up the user ID from the active session
+    const { data: sessionData } = await supabaseAdmin
+        .from('active_sessions')
+        .select('user_id')
+        .eq('session_id', sessionId)
+        .single()
+
+    if (!sessionData) return false
+
+    // Check the user's role in perfiles
+    const { data: userProfile } = await supabaseAdmin
+        .from('perfiles')
+        .select('role')
+        .eq('id', sessionData.user_id)
+        .single()
+
+    return userProfile?.role === 'admin'
+}
 
 export async function createUserAction(data: {
     email: string
@@ -16,6 +46,10 @@ export async function createUserAction(data: {
         return {
             error: "Configuración del servidor incompleta (Falta Service Role Key). Por favor contacte a soporte."
         }
+    }
+
+    if (!(await verifyAdminRole())) {
+        return { error: "No tiene permisos para realizar esta acción." }
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -45,7 +79,7 @@ export async function createUserAction(data: {
         // However, we explicitly upsert to ensure the EMAIL and other fields are strictly in sync
 
         const { error: syncError } = await supabaseAdmin
-            .from('vendedores')
+            .from('perfiles')
             .upsert({
                 id: userData.user.id,
                 full_name: data.nombre,
@@ -78,6 +112,10 @@ export async function updateUserAction(data: {
         return {
             error: "Configuración del servidor incompleta (Falta Service Role Key)."
         }
+    }
+
+    if (!(await verifyAdminRole())) {
+        return { error: "No tiene permisos para realizar esta acción." }
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -120,7 +158,7 @@ export async function updateUserAction(data: {
         if (data.email) dbUpdates.email = data.email
 
         const { error: dbError } = await supabaseAdmin
-            .from('vendedores')
+            .from('perfiles')
             .upsert(dbUpdates, { onConflict: 'id' })
 
         if (dbError) {
@@ -138,31 +176,218 @@ export async function updateUserAction(data: {
 export async function deleteUserAction(userId: string) {
     if (!supabaseServiceKey) return { error: "Falta Service Role Key" }
 
+    if (!(await verifyAdminRole())) {
+        return { error: "No tiene permisos para realizar esta acción." }
+    }
+
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
         auth: { autoRefreshToken: false, persistSession: false }
     })
 
     try {
-        // Delete from Auth (encadenado should cascade delete from public if constrained correctly)
-        // Even if no cascade, we want to try to delete from public manually just in case
-
-        // 1. Try deleting from public 'vendedores' first to avoid FK issues if cascade isn't set
-        const { error: dbError } = await supabaseAdmin
-            .from('vendedores')
-            .delete()
+        // 1. Get current user details to preserve original email in metadata if needed
+        const { data: userProfile } = await supabaseAdmin
+            .from('perfiles')
+            .select('email')
             .eq('id', userId)
+            .single()
 
-        if (dbError) {
-            console.warn("Could not delete from public table (might depend on Auth):", dbError)
+        const originalEmail = userProfile?.email || "unknown"
+        const timestamp = Date.now()
+        // Create an archived email that definitely won't conflict
+        const archivedEmail = `deleted_${timestamp}_${userId}@archived.local`
+
+        // 2. "Release" the email by renaming the account in Auth and Perfiles
+        // This ensures that even if Hard Delete fails (due to constraints), the email is free.
+
+        // A. Update Auth User
+        const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+            email: archivedEmail,
+            user_metadata: {
+                original_email: originalEmail,
+                deleted: true,
+                deleted_at: new Date().toISOString()
+            }
+        })
+
+        if (updateAuthError) {
+            console.error("Failed to release email in Auth:", updateAuthError)
+            return { error: "Error al liberar el correo: " + updateAuthError.message }
         }
 
-        // 2. Delete from Auth
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId)
-        if (authError) throw authError
+        // B. Update Perfiles (Public) - Mark as inactive and rename email
+        const { error: updateDbError } = await supabaseAdmin
+            .from('perfiles')
+            .update({
+                email: archivedEmail,
+                activo: false,
+                deleted_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+
+        if (updateDbError) {
+            console.warn("Failed to update perfiles during archive:", updateDbError)
+            // Continue anyway, as Auth email is the most critical one to release
+        }
+
+        // 3. Attempt Hard Delete
+        // If this succeeds, the user is gone forever (great).
+        // If this fails (e.g. FK violation from 'cotizaciones'), the catch block would usually catch it
+        // BUT 'deleteUser' from Auth might silently fail to cascade if FK is RESTRICT.
+
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+
+        if (deleteError) {
+            console.warn("Hard delete failed (likely constraints):", deleteError)
+            // This is acceptable. We successfully "Archived" the user by renaming credentials.
+            // We return SUCCESS so the UI updates, as the "User" effectively no longer exists as a valid login.
+        }
 
         return { success: true }
     } catch (err: any) {
         console.error("Delete user error details:", JSON.stringify(err, null, 2))
-        return { error: `Error al eliminar: ${err.message || 'Error desconocido'} (Revise si el usuario tiene datos asociados como cotizaciones o clientes)` }
+        return { error: `Error durante el proceso de eliminación: ${err.message || 'Error desconocido'}` }
+    }
+}
+export async function createSessionAction(userId: string) {
+    if (!supabaseServiceKey) return { error: "Falta Service Role Key" }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    try {
+        const sessionId = randomUUID()
+        const cookieStore = await cookies()
+
+        // 0. Check if user is active
+        const { data: userProfile } = await supabaseAdmin
+            .from('perfiles')
+            .select('activo')
+            .eq('id', userId)
+            .single()
+
+        if (userProfile && userProfile.activo === false) {
+            return { error: "Su cuenta ha sido desactivada. Contacte al administrador." }
+        }
+
+        // 1. Try to INSERT active session in DB (StrictMode: Fail if exists)
+        const { error: dbError } = await supabaseAdmin
+            .from('active_sessions')
+            .insert({
+                user_id: userId,
+                session_id: sessionId,
+                last_login_at: new Date().toISOString(),
+                device_info: "browser"
+            })
+
+        if (dbError) {
+            // Check for unique violation (Postgres code 23505)
+            if (dbError.code === '23505') {
+                // 1. Check if the "active" session is actually stale based on Heartbeat
+                const { data: profile } = await supabaseAdmin
+                    .from('perfiles')
+                    .select('last_seen_at')
+                    .eq('id', userId)
+                    .single()
+
+                const lastSeen = profile?.last_seen_at ? new Date(profile.last_seen_at).getTime() : 0
+                const now = new Date().getTime()
+                // Threshold: 2 minutes (120000 ms)
+                const isStale = (now - lastSeen) > (2 * 60 * 1000)
+
+                if (isStale) {
+                    // Session is a ghost OR valid user with failed heartbeats. 
+                    // To be safe and enforce single session:
+                    // 1. Kill the DB session
+                    await supabaseAdmin
+                        .from('active_sessions')
+                        .delete()
+                        .eq('user_id', userId)
+
+                    // 2. FORCE signal to other clients to log out (just in case they are online)
+                    await supabaseAdmin
+                        .from('perfiles')
+                        .update({ last_force_logout_at: new Date().toISOString() })
+                        .eq('id', userId)
+
+                    // Retry creation
+                    const { error: retryError } = await supabaseAdmin
+                        .from('active_sessions')
+                        .insert({
+                            user_id: userId,
+                            session_id: sessionId,
+                            last_login_at: new Date().toISOString(),
+                            device_info: "browser"
+                        })
+
+                    if (retryError) throw retryError // If it fails again, real error
+                } else {
+                    // Session is genuinely active. Block it.
+                    const { data: existingSession } = await supabaseAdmin
+                        .from('active_sessions')
+                        .select('last_login_at, device_info')
+                        .eq('user_id', userId)
+                        .single()
+
+                    return {
+                        error: "Este usuario ya tiene una sesión activa",
+                        code: 'SESSION_EXISTS',
+                        details: existingSession
+                    }
+                }
+            } else {
+                throw dbError
+            }
+        }
+
+        // Successfully created session. Now mark user as SEEN so it's not immediately stale
+        await supabaseAdmin
+            .from('perfiles')
+            .update({ last_seen_at: new Date().toISOString() })
+            .eq('id', userId)
+
+        // 2. Set HTTP-only cookie
+        cookieStore.set('crm_session', sessionId, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7 // 1 week
+        })
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("Create session error:", err)
+        return { error: "Error al crear sesión segura" }
+    }
+}
+
+export async function deleteSessionAction() {
+    if (!supabaseServiceKey) return { error: "Falta Service Role Key" }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    try {
+        const cookieStore = await cookies()
+        const sessionId = cookieStore.get('crm_session')?.value
+
+        if (sessionId) {
+            // Remove from DB
+            await supabaseAdmin
+                .from('active_sessions')
+                .delete()
+                .eq('session_id', sessionId)
+
+            // Remove cookie
+            cookieStore.delete('crm_session')
+        }
+
+        return { success: true }
+    } catch (err: any) {
+        console.error("Delete session error:", err)
+        return { error: "Error al cerrar sesión segura" }
     }
 }

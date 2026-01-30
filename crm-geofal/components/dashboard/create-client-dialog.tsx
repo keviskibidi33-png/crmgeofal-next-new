@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { supabase } from "@/lib/supabaseClient"
 import { logAction } from "@/app/actions/audit-actions"
 import { useAuth } from "@/hooks/use-auth"
@@ -56,7 +56,7 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess }: CreateClie
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedSector, setSelectedSector] = useState("")
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const {
     register,
@@ -78,10 +78,8 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess }: CreateClie
 
   const onSubmit = async (data: ClientFormData) => {
     if (!user) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se identificó el usuario activo.",
-        variant: "destructive",
       })
       return
     }
@@ -118,8 +116,7 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess }: CreateClie
         }
       }
 
-      toast({
-        title: "✅ Cliente creado",
+      toast.success("✅ Cliente creado", {
         description: `Se ha registrado exitosamente a ${data.empresa}.`,
       })
 
@@ -136,10 +133,8 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess }: CreateClie
       onOpenChange(false)
       onSuccess?.()
     } catch (error: any) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "No se pudo crear el cliente.",
-        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -149,7 +144,6 @@ export function CreateClientDialog({ open, onOpenChange, onSuccess }: CreateClie
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        showCloseButton={true}
         className="sm:max-w-[550px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl"
       >
         {/* HEADER */}

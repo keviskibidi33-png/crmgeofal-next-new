@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { supabase } from "@/lib/supabaseClient"
 import { type User } from "@/hooks/use-auth"
 import { logAction } from "@/app/actions/audit-actions"
@@ -59,7 +59,7 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
   const [openClientePopover, setOpenClientePopover] = useState(false)
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null)
   const [selectedContacto, setSelectedContacto] = useState<string | null>(null)
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const {
     register,
@@ -90,7 +90,7 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
     if (!clienteSearch || clienteSearch.length < 2) return clientes.slice(0, 50)
 
     const palabras = clienteSearch.toLowerCase().split(/\s+/).filter(p => p.length > 0)
-    
+
     const filtrados = clientes.filter(c => {
       const textoCompleto = `${c.empresa} ${c.ruc} ${c.nombre}`.toLowerCase()
       return palabras.every(palabra => textoCompleto.includes(palabra))
@@ -111,15 +111,15 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
 
   const onSubmit = async (data: ProjectFormData) => {
     if (!user) {
-      toast({ title: "Error", description: "Usuario no autenticado", variant: "destructive" })
+      toast.error("Error", { description: "Usuario no autenticado" })
       return
     }
     if (!selectedCliente) {
-      toast({ title: "Error", description: "Selecciona una empresa", variant: "destructive" })
+      toast.error("Error", { description: "Selecciona una empresa" })
       return
     }
     if (!selectedContacto) {
-      toast({ title: "Error", description: "Selecciona un contacto para el proyecto", variant: "destructive" })
+      toast.error("Error", { description: "Selecciona un contacto para el proyecto" })
       return
     }
 
@@ -143,8 +143,7 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
 
       const empresaSeleccionada = clientes.find((c) => c.id === selectedCliente)
 
-      toast({
-        title: "✅ Proyecto creado",
+      toast.success("✅ Proyecto creado", {
         description: `"${data.nombre}" para ${empresaSeleccionada?.empresa || "empresa"} se creó exitosamente.`,
       })
 
@@ -162,10 +161,8 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
       onOpenChange(false)
       onSuccess?.()
     } catch (err: any) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: err.message || "No se pudo crear el proyecto.",
-        variant: "destructive",
       })
     } finally {
       setIsLoading(false)
@@ -175,7 +172,6 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        showCloseButton={true}
         className="sm:max-w-[550px] w-[95vw] bg-card border-border p-0 overflow-hidden shadow-2xl h-[85vh] flex flex-col rounded-3xl"
       >
         {/* HEADER */}
@@ -251,8 +247,8 @@ export function CreateProjectDialog({ open, onOpenChange, onSuccess, user }: Cre
                       </PopoverTrigger>
                       <PopoverContent className="w-[500px] p-0 rounded-xl" align="start">
                         <Command shouldFilter={false}>
-                          <CommandInput 
-                            placeholder="Buscar por nombre, RUC..." 
+                          <CommandInput
+                            placeholder="Buscar por nombre, RUC..."
                             value={clienteSearch}
                             onValueChange={setClienteSearch}
                             className="h-10 text-xs"

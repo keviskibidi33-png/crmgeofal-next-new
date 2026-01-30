@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/hooks/use-auth"
 import { useState } from "react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { updateUserAction } from "@/app/actions/auth-actions"
 import { Loader2, AlertTriangle, Phone } from "lucide-react"
 import { logAction } from "@/app/actions/audit-actions"
@@ -17,7 +17,7 @@ export function ConfiguracionModule() {
   const { user: currentUser, refreshUser } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
 
   const [formData, setFormData] = useState({
     name: currentUser?.name || "",
@@ -40,8 +40,7 @@ export function ConfiguracionModule() {
 
       await refreshUser()
 
-      toast({
-        title: "Perfil actualizado",
+      toast.success("Perfil actualizado", {
         description: "Tus datos han sido guardados correctamente.",
       })
 
@@ -56,10 +55,8 @@ export function ConfiguracionModule() {
 
       setIsEditing(false)
     } catch (err: any) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: err.message,
-        variant: "destructive",
       })
     } finally {
       setIsLoading(false)

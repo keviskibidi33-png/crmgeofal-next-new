@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { Inter, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
-// import { Toaster } from "@/components/ui/toaster" // Handled by Providers (Sonner)
+
 import { ThemeProvider } from "@/components/theme-provider"
 import { Providers } from "@/components/providers"
 
@@ -30,7 +30,7 @@ export default function RootLayout({
         <Providers>
           <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
             {children}
-            {/* <Toaster /> Removed to use Sonner from Providers */}
+
           </ThemeProvider>
         </Providers>
       </body>

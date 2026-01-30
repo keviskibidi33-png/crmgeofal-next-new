@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { supabase } from "@/lib/supabaseClient"
 import { useAuth } from "@/hooks/use-auth"
 import { logAction } from "@/app/actions/audit-actions"
@@ -40,6 +40,12 @@ interface Seller {
     phone: string
     role: string
     estado: "activo" | "inactivo"
+    last_seen_at?: string | null
+}
+
+interface RoleDefinition {
+    role_id: string
+    label: string
 }
 
 interface SellerFormData {
@@ -65,13 +71,26 @@ export function UsuariosModule() {
     const [isLoading, setIsLoading] = useState(false)
     const [fetching, setFetching] = useState(false)
     const [currentPage, setCurrentPage] = useState(1)
-    const { toast } = useToast()
+    const [availableRoles, setAvailableRoles] = useState<RoleDefinition[]>([])
+    // const { toast } = useToast() // Replaced by Sonner
+
+    const fetchRoles = useCallback(async () => {
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/roles`)
+            if (res.ok) {
+                const data = await res.json()
+                setAvailableRoles(data)
+            }
+        } catch (e) {
+            console.error("Failed to fetch roles", e)
+        }
+    }, [])
 
     const fetchSellers = useCallback(async () => {
         setFetching(true)
         try {
             const { data, error } = await supabase
-                .from("vendedores")
+                .from("perfiles")
                 .select("*")
                 .is("deleted_at", null)
                 .order("full_name")
@@ -84,22 +103,74 @@ export function UsuariosModule() {
                 email: s.email || "---",
                 phone: s.phone || "",
                 role: s.role,
-                estado: s.role === "admin" ? "activo" : (s.role === "vendor" ? "activo" : "inactivo") // Logic for status should ideally be in DB
+                estado: "activo", // Since we filter deleted_at is null, they are all active
+                last_seen_at: s.last_seen_at
             })))
         } catch (err: any) {
-            toast({
-                title: "Error al cargar usuarios",
+            toast.error("Error al cargar usuarios", {
                 description: err.message,
-                variant: "destructive",
             })
         } finally {
             setFetching(false)
         }
-    }, [toast])
+    }, [])
 
     useEffect(() => {
         fetchSellers()
-    }, [fetchSellers])
+        fetchRoles()
+
+        // Realtime Subscription
+        const channel = supabase
+            .channel('vendedores_list_realtime')
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'perfiles' },
+                (payload) => {
+                    const updatedUser = payload.new as any
+                    setSellers(prev => prev.map(s =>
+                        s.id === updatedUser.id
+                            ? {
+                                ...s,
+                                nombre: updatedUser.full_name || s.nombre,
+                                email: updatedUser.email || s.email,
+                                role: updatedUser.role || s.role,
+                                phone: updatedUser.phone || s.phone,
+                                last_seen_at: updatedUser.last_seen_at,
+                                estado: "activo"
+                            }
+                            : s
+                    ))
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [fetchSellers, fetchRoles])
+
+    const isOnline = (lastSeen?: string | null) => {
+        if (!lastSeen) return false
+        const diff = new Date().getTime() - new Date(lastSeen).getTime()
+        return diff < 5 * 60 * 1000 // 5 minutes logic
+    }
+
+    const handleForceLogout = async (userId: string) => {
+        if (!confirm("¿Cerrar la sesión de este usuario forzosamente?")) return
+
+        try {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/users/${userId}/logout`, {
+                method: 'POST'
+            })
+            if (!res.ok) throw new Error("Error al cerrar sesión")
+
+            toast.success("Sesión cerrada", {
+                description: "Se ha enviado la orden de cierre de sesión."
+            })
+        } catch (err) {
+            toast.error("Error", { description: "No se pudo cerrar la sesión remota" })
+        }
+    }
 
     const {
         register,
@@ -130,8 +201,7 @@ export function UsuariosModule() {
 
             if (result.error) throw new Error(result.error)
 
-            toast({
-                title: "Usuario creado",
+            toast.success("Usuario creado", {
                 description: "El usuario ha sido creado y verificado correctamente. Ya puede iniciar sesión.",
             })
 
@@ -147,10 +217,8 @@ export function UsuariosModule() {
             reset()
             fetchSellers()
         } catch (err: any) {
-            toast({
-                title: "Error",
+            toast.error("Error", {
                 description: err.message,
-                variant: "destructive",
             })
         } finally {
             setIsLoading(false)
@@ -164,7 +232,7 @@ export function UsuariosModule() {
         setIsLoading(true)
         try {
             const { error } = await supabase
-                .from("vendedores")
+                .from("perfiles")
                 .update({
                     full_name: data.nombre,
                     role: data.role
@@ -175,8 +243,7 @@ export function UsuariosModule() {
 
             setSellers(sellers.map(s => s.id === editingSeller.id ? { ...s, nombre: data.nombre, role: data.role } : s))
 
-            toast({
-                title: "Usuario actualizado",
+            toast.success("Usuario actualizado", {
                 description: "Los datos del usuario han sido actualizados.",
             })
 
@@ -190,10 +257,8 @@ export function UsuariosModule() {
             })
             setEditingSeller(null)
         } catch (err: any) {
-            toast({
-                title: "Error",
+            toast.error("Error", {
                 description: err.message,
-                variant: "destructive",
             })
         } finally {
             setIsLoading(false)
@@ -207,8 +272,8 @@ export function UsuariosModule() {
             // Update role/status in DB. For now we use role as proxy or just mock it since status column doesn't exist yet
             // User said "activacion/desactivacion"
             // Let's assume for now we just show it's done or update a hypothetical field
-            toast({
-                title: targetStatus === "activo" ? "Usuario activado" : "Usuario desactivado",
+            // Let's assume for now we just show it's done or update a hypothetical field
+            toast.success(targetStatus === "activo" ? "Usuario activado" : "Usuario desactivado", {
                 description: `El usuario ${selectedSeller.nombre} ha sido ${targetStatus === "activo" ? "activado" : "desactivado"}.`,
             })
 
@@ -223,7 +288,7 @@ export function UsuariosModule() {
             setIsStatusDialogOpen(false)
             setSelectedSeller(null)
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsLoading(false)
         }
@@ -235,16 +300,14 @@ export function UsuariosModule() {
         try {
             // Soft delete - set deleted_at timestamp instead of hard delete
             const { error } = await supabase
-                .from("vendedores")
+                .from("perfiles")
                 .update({ deleted_at: new Date().toISOString() })
                 .eq("id", selectedSeller.id)
 
             if (error) throw error
 
             setSellers(sellers.filter((s) => s.id !== selectedSeller.id))
-            toast({
-                title: "Usuario eliminado exitosamente",
-            })
+            toast.success("Usuario eliminado exitosamente")
 
             // Log action
             logAction({
@@ -257,7 +320,7 @@ export function UsuariosModule() {
             setIsDeleteDialogOpen(false)
             setSelectedSeller(null)
         } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" })
+            toast.error("Error", { description: err.message })
         } finally {
             setIsLoading(false)
         }
@@ -321,7 +384,15 @@ export function UsuariosModule() {
                             <TableBody>
                                 {paginatedSellers.map((seller) => (
                                     <TableRow key={seller.id} className="border-border hover:bg-secondary/30 transition-colors">
-                                        <TableCell className="font-medium">{seller.nombre}</TableCell>
+                                        <TableCell className="font-medium">
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className={`h-2.5 w-2.5 rounded-full ${isOnline(seller.last_seen_at) ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-slate-300'}`}
+                                                    title={isOnline(seller.last_seen_at) ? "En línea" : "Desconectado"}
+                                                />
+                                                {seller.nombre}
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-muted-foreground">{seller.email}</TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className="capitalize">{seller.role}</Badge>
@@ -389,6 +460,14 @@ export function UsuariosModule() {
                                                         <Trash2 className="mr-2 h-4 w-4" />
                                                         Eliminar Usuario
                                                     </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        className="text-orange-600 focus:text-orange-600 font-medium"
+                                                        onClick={() => handleForceLogout(seller.id)}
+                                                    >
+                                                        <Lock className="mr-2 h-4 w-4" />
+                                                        Cerrar Sesión Remota
+                                                    </DropdownMenuItem>
                                                 </DropdownMenuContent>
                                             </DropdownMenu>
                                         </TableCell>
@@ -401,49 +480,51 @@ export function UsuariosModule() {
             </Card>
 
             {/* Pagination Footer */}
-            {sellers.length > ITEMS_PER_PAGE && (
-                <div className="flex items-center justify-between pt-4 border-t mt-4">
-                    <p className="text-sm text-muted-foreground">
-                        Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
-                        {Math.min(currentPage * ITEMS_PER_PAGE, sellers.length)} de {sellers.length} usuarios
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                            disabled={currentPage === 1}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <div className="flex items-center gap-1">
-                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                                <Button
-                                    key={page}
-                                    variant={currentPage === page ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setCurrentPage(page)}
-                                    className="w-8 h-8 p-0"
-                                >
-                                    {page}
-                                </Button>
-                            ))}
+            {
+                sellers.length > ITEMS_PER_PAGE && (
+                    <div className="flex items-center justify-between pt-4 border-t mt-4">
+                        <p className="text-sm text-muted-foreground">
+                            Mostrando {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{" "}
+                            {Math.min(currentPage * ITEMS_PER_PAGE, sellers.length)} de {sellers.length} usuarios
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="flex items-center gap-1">
+                                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                    <Button
+                                        key={page}
+                                        variant={currentPage === page ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCurrentPage(page)}
+                                        className="w-8 h-8 p-0"
+                                    >
+                                        {page}
+                                    </Button>
+                                ))}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={currentPage === totalPages}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Create User Dialog */}
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                <DialogContent showCloseButton={false} className="sm:max-w-[450px] bg-card border-border">
+                <DialogContent className="sm:max-w-[450px] bg-card border-border">
                     <DialogHeader>
                         <DialogTitle>Nuevo Vendedor</DialogTitle>
                         <DialogDescription>El usuario se creará activo y verificado.</DialogDescription>
@@ -474,6 +555,9 @@ export function UsuariosModule() {
                             >
                                 <option value="vendor">Vendedor</option>
                                 <option value="admin">Administrador</option>
+                                {availableRoles.filter(r => r.role_id !== 'admin' && r.role_id !== 'vendor').map(r => (
+                                    <option key={r.role_id} value={r.role_id}>{r.label}</option>
+                                ))}
                             </select>
                         </div>
                         <DialogFooter className="pt-4">
@@ -489,7 +573,7 @@ export function UsuariosModule() {
 
             {/* Edit User Dialog */}
             <Dialog open={!!editingSeller} onOpenChange={(open) => !open && setEditingSeller(null)}>
-                <DialogContent showCloseButton={false} className="sm:max-w-[450px] bg-card border-border">
+                <DialogContent className="sm:max-w-[450px] bg-card border-border">
                     <DialogHeader>
                         <DialogTitle>Editar Usuario</DialogTitle>
                         <DialogDescription>Modifica los datos de acceso y perfil del usuario.</DialogDescription>
@@ -521,14 +605,13 @@ export function UsuariosModule() {
 
                             if (result.error) throw new Error(result.error)
 
-                            toast({
-                                title: "Usuario actualizado",
+                            toast.success("Usuario actualizado", {
                                 description: "Los cambios han sido guardados correctamente.",
                             })
                             setEditingSeller(null)
                             fetchSellers()
                         } catch (err: any) {
-                            toast({ title: "Error", description: err.message, variant: "destructive" })
+                            toast.error("Error", { description: err.message })
                         } finally {
                             setIsLoading(false)
                         }
@@ -562,6 +645,9 @@ export function UsuariosModule() {
                             >
                                 <option value="vendor">Vendedor</option>
                                 <option value="admin">Administrador</option>
+                                {availableRoles.filter(r => r.role_id !== 'admin' && r.role_id !== 'vendor').map(r => (
+                                    <option key={r.role_id} value={r.role_id}>{r.label}</option>
+                                ))}
                             </select>
                         </div>
                         <DialogFooter className="pt-4">
@@ -577,7 +663,7 @@ export function UsuariosModule() {
 
             {/* Status Confirmation Dialog */}
             <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
-                <DialogContent showCloseButton={false} className="sm:max-w-[400px] bg-card border-border">
+                <DialogContent className="sm:max-w-[400px] bg-card border-border">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             {targetStatus === "activo" ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <AlertTriangle className="h-5 w-5 text-yellow-500" />}
@@ -614,6 +700,6 @@ export function UsuariosModule() {
                 confirmText="Sí, eliminar"
                 cancelText="No, cancelar"
             />
-        </div>
+        </div >
     )
 }

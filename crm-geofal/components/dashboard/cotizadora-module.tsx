@@ -13,7 +13,8 @@ import { ModernConfirmDialog } from "./modern-confirm-dialog"
 import { QuotePreviewPanel } from "./quote-preview-panel"
 import type { User } from "@/app/page"
 import { supabase } from "@/lib/supabaseClient"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { CheckCircle2, XCircle, AlertCircle, ChevronDown, Trash2 } from "lucide-react"
 import {
   Dialog,
@@ -134,7 +135,7 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
   const [quotes, setQuotes] = useState<Quote[]>([])
   const [loading, setLoading] = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
-  const { toast } = useToast()
+  // const { toast } = useToast() // Replaced by Sonner
   const cotizadorUrl = process.env.NEXT_PUBLIC_COTIZADOR_URL ?? undefined
 
   const fetchQuotes = useCallback(async () => {
@@ -149,15 +150,13 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
       if (error) throw error
       setQuotes((data || []).map(mapDbQuoteToUi))
     } catch (err: any) {
-      toast({
-        title: "Error al cargar cotizaciones",
+      toast.error("Error al cargar cotizaciones", {
         description: err.message,
-        variant: "destructive",
       })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     fetchQuotes()
@@ -237,8 +236,7 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
         setSelectedQuote({ ...selectedQuote, estado: newStatus })
       }
 
-      toast({
-        title: "Estado actualizado",
+      toast.success("Estado actualizado", {
         description: `La cotización ha sido marcada como ${statusLabels[newStatus]}.`,
       })
 
@@ -250,10 +248,8 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
         details: { quote_id: quoteId }
       })
     } catch (err: any) {
-      toast({
-        title: "Error al actualizar estado",
+      toast.error("Error al actualizar estado", {
         description: err.message,
-        variant: "destructive",
       })
     } finally {
       setUpdatingStatus(false)
@@ -262,10 +258,8 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
 
   const handleDownload = async (quote: Quote) => {
     if (!quote.objectKey) {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: "No se encontró el archivo de la cotización.",
-        variant: "destructive",
       })
       return
     }
@@ -293,10 +287,8 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
         details: { quote_id: quote.id }
       })
     } catch (err: any) {
-      toast({
-        title: "Error al descargar",
+      toast.error("Error al descargar", {
         description: err.message,
-        variant: "destructive",
       })
     }
   }
@@ -320,9 +312,7 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
       setSelectedQuote(null)
       setPreviewQuote(null)
 
-      toast({
-        title: "Cotización eliminada exitosamente",
-      })
+      toast.success("Cotización eliminada exitosamente")
 
       logAction({
         user_id: user.id,
@@ -332,10 +322,8 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
         details: { quote_id: deletedId }
       })
     } catch (err: any) {
-      toast({
-        title: "Error al eliminar",
+      toast.error("Error al eliminar", {
         description: err.message,
-        variant: "destructive",
       })
     }
   }
@@ -357,8 +345,7 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
 
   return (
     <div className="flex gap-4 h-[calc(100vh-120px)]">
-      {/* Main Content: ~70% */}
-      <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
+      <div className="w-full h-full flex flex-col gap-4 min-w-0 overflow-hidden">
         {/* Header Row */}
         <div className="flex items-center justify-between">
           <div>
@@ -543,7 +530,7 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
                 <TableHeader className="sticky top-0 bg-card z-10">
                   <TableRow className="hover:bg-transparent border-b">
                     <TableHead className="text-xs font-semibold px-4 py-3 w-[100px]">ID</TableHead>
-                    <TableHead className="text-xs font-semibold px-4 py-3">Cliente / Proyecto</TableHead>
+                    <TableHead className="text-xs font-semibold px-4 py-3 max-w-[300px] xl:max-w-[400px]">Cliente / Proyecto</TableHead>
                     <TableHead className="text-xs font-semibold px-4 py-3 w-[80px] text-center">Items</TableHead>
                     <TableHead className="text-xs font-semibold px-4 py-3 w-[120px] text-right">Monto</TableHead>
                     <TableHead className="text-xs font-semibold px-4 py-3 w-[100px]">Estado</TableHead>
@@ -561,13 +548,13 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
                     >
                       <TableCell className="px-4 py-2.5">
                         <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                          {quote.numero}-{quote.year}
+                          {quote.numero}-{String(quote.year).slice(-2)}
                         </span>
                       </TableCell>
-                      <TableCell className="px-4 py-2.5">
+                      <TableCell className="px-4 py-2.5 max-w-[300px] xl:max-w-[400px]">
                         <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-sm truncate">{quote.cliente}</span>
-                          <span className="text-[10px] text-muted-foreground truncate">{quote.proyectoNombre}</span>
+                          <span className="font-semibold text-sm truncate" title={quote.cliente}>{quote.cliente}</span>
+                          <span className="text-[10px] text-muted-foreground truncate" title={quote.proyectoNombre}>{quote.proyectoNombre}</span>
                         </div>
                       </TableCell>
                       <TableCell className="px-4 py-2.5 text-center">
@@ -618,6 +605,19 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
                           >
                             <Download className="h-3.5 w-3.5" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedQuote(quote);
+                              setIsDialogOpen(true);
+                            }}
+                            title="Editar"
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -629,19 +629,31 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
         </Card>
       </div>
 
-      {/* Preview Panel: ~30% */}
-      <aside className="w-[380px] shrink-0 h-full">
-        <QuotePreviewPanel
-          quote={previewQuote}
-          onDownload={handleDownload}
-          onStatusChange={changeQuoteStatus}
-          onViewFull={openViewDialog}
-          onDelete={(quote) => { setPreviewQuote(quote); setIsDeleteConfirmOpen(true) }}
-          isUpdating={updatingStatus}
-        />
-      </aside>
+      <Sheet open={!!previewQuote} onOpenChange={(open) => !open && setPreviewQuote(null)}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px] p-0 border-l border-border bg-card">
+          <QuotePreviewPanel
+            quote={previewQuote}
+            onDownload={handleDownload}
+            onStatusChange={changeQuoteStatus}
+            onViewFull={openViewDialog}
+            onDelete={(quote) => { setPreviewQuote(quote); setIsDeleteConfirmOpen(true) }}
+            onEdit={(quote) => { setSelectedQuote(quote); setIsDialogOpen(true) }}
+            isUpdating={updatingStatus}
+          />
+        </SheetContent>
+      </Sheet>
 
-      <CreateQuoteDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} iframeUrl={cotizadorUrl} user={user} onSuccess={fetchQuotes} />
+      <CreateQuoteDialog
+        open={isDialogOpen}
+        onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) setSelectedQuote(null); // Clear selection on close
+        }}
+        iframeUrl={cotizadorUrl}
+        user={user}
+        onSuccess={fetchQuotes}
+        quoteId={selectedQuote?.id}
+      />
 
       {/* Full View Dialog (for complete details) */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -664,81 +676,81 @@ export function CotizadoraModule({ user }: CotizadoraModuleProps) {
           {selectedQuote && (
             <ScrollArea className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-3">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadgeClass(selectedQuote.estado)}`}>
-                    {statusLabels[selectedQuote.estado]}
-                  </span>
-                  <span className="text-sm text-muted-foreground">Emitida el {selectedQuote.fecha}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="gap-2" disabled={updatingStatus}>
-                        {updatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
-                        Cambiar Estado
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "aprobada")} className="gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Aprobada
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "rechazada")} className="gap-2">
-                        <XCircle className="h-4 w-4 text-red-500" /> Rechazada
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "pendiente")} className="gap-2">
-                        <AlertCircle className="h-4 w-4 text-amber-500" /> Pendiente
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Button variant="default" size="sm" className="gap-2" onClick={() => handleDownload(selectedQuote)}>
-                    <Download className="h-4 w-4" />
-                    Descargar
-                  </Button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                    <Building2 className="h-4 w-4" />
-                    Información del Cliente
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getStatusBadgeClass(selectedQuote.estado)}`}>
+                      {statusLabels[selectedQuote.estado]}
+                    </span>
+                    <span className="text-sm text-muted-foreground">Emitida el {selectedQuote.fecha}</span>
                   </div>
-                  <div className="space-y-2 bg-secondary/20 p-4 rounded-lg">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Empresa</p>
-                      <p className="text-sm font-semibold">{selectedQuote.cliente}</p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">RUC</p>
-                        <p className="text-sm">{selectedQuote.clienteRuc || "N/A"}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Contacto</p>
-                        <p className="text-sm">{selectedQuote.clienteContacto || "N/A"}</p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2" disabled={updatingStatus}>
+                          {updatingStatus ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+                          Cambiar Estado
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "aprobada")} className="gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Aprobada
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "rechazada")} className="gap-2">
+                          <XCircle className="h-4 w-4 text-red-500" /> Rechazada
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => changeQuoteStatus(selectedQuote.id, "pendiente")} className="gap-2">
+                          <AlertCircle className="h-4 w-4 text-amber-500" /> Pendiente
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Button variant="default" size="sm" className="gap-2" onClick={() => handleDownload(selectedQuote)}>
+                      <Download className="h-4 w-4" />
+                      Descargar
+                    </Button>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-primary font-semibold text-sm">
-                    <User2 className="h-4 w-4" />
-                    Información Comercial
-                  </div>
-                  <div className="space-y-2 bg-secondary/20 p-4 rounded-lg">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vendedor</p>
-                      <p className="text-sm font-semibold">{selectedQuote.owner}</p>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                      <Building2 className="h-4 w-4" />
+                      Información del Cliente
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Monto Total</p>
-                      <p className="text-xl font-bold text-primary">S/. {selectedQuote.monto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                    <div className="space-y-2 bg-secondary/20 p-4 rounded-lg">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Empresa</p>
+                        <p className="text-sm font-semibold">{selectedQuote.cliente}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">RUC</p>
+                          <p className="text-sm">{selectedQuote.clienteRuc || "N/A"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Contacto</p>
+                          <p className="text-sm">{selectedQuote.clienteContacto || "N/A"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+                      <User2 className="h-4 w-4" />
+                      Información Comercial
+                    </div>
+                    <div className="space-y-2 bg-secondary/20 p-4 rounded-lg">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vendedor</p>
+                        <p className="text-sm font-semibold">{selectedQuote.owner}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Monto Total</p>
+                        <p className="text-xl font-bold text-primary">S/. {selectedQuote.monto.toLocaleString("es-PE", { minimumFractionDigits: 2 })}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
                 {/* Items List */}
                 {selectedQuote.itemsJson && selectedQuote.itemsJson.length > 0 && (
