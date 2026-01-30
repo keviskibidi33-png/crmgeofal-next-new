@@ -115,7 +115,10 @@ export function ProgramacionModule({ user }: ProgramacionModuleProps) {
 
     const currentConfig = getModuleConfig(currentMode)
     const { title, icon: Icon } = currentConfig
-    const iframeUrl = process.env.NEXT_PUBLIC_PROGRAMACION_URL || 'http://localhost:5173'
+    const iframeUrl = process.env.NEXT_PUBLIC_PROGRAMACION_URL ||
+        (typeof window !== 'undefined' && window.location.hostname === 'crm.geofal.com.pe'
+            ? 'https://programacion.geofal.com.pe'
+            : 'http://localhost:8472')
     const fullUrl = `${iframeUrl}?mode=${currentMode.toLowerCase()}&userId=${user.id}`
 
     return (
